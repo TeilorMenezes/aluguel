@@ -1,0 +1,76 @@
+# =============================================================================
+# CONFIGURAÇÃO DOS SITES DE IMOBILIÁRIAS
+# =============================================================================
+# Seletores identificados a partir do HTML renderizado (debug_oliveira.html
+# e debug_cirsa.html) enviado pelo usuário em 02/07/2026.
+# =============================================================================
+
+sites:
+  oliveira:
+    nome: "Oliveira Imóveis"
+    logo: "https://www.oliveiraimoveis.net/assets/img/logo-original.png"
+    base_url: "https://www.oliveiraimoveis.net"
+    listagem_url: "https://www.oliveiraimoveis.net/aluguel"
+    cidade_padrao: "Ipatinga"
+
+    espera_seletor: ".container-card-busca"
+
+    paginacao:
+      tipo: "botao"              # clica em um botão "ver mais" repetidamente
+      botao_selector: "#ver-mais"
+      max_cliques: 15
+      espera_apos_clique_ms: 1500
+
+    seletores:
+      card: ".container-card-busca"
+      link: "a"                   # primeiro <a> dentro do card já tem o href correto
+      titulo: "h2.card-title"     # ex: "Apartamento para alugar  no PARQUE CARAVELAS"
+      preco: "h6.preco-imovel-card"
+      endereco: "h4.card-text"    # rua/número, quando existir (nem sempre confiável)
+      thumbnail: "img.img-imovel"
+      thumbnail_attr: "data-src"
+
+    # Extrai tipo e bairro do texto do título via regex nomeada.
+    # Grupo "tipo" -> tipo do imóvel, grupo "bairro" -> bairro.
+    titulo_regex: '^(?P<tipo>.+?)\s+para alugar\s+no\s+(?P<bairro>.+)$'
+
+  cirsa:
+    nome: "CIRSA Imóveis"
+    logo: "https://www.cirsa.com.br/assets/img/logos/logo.png"
+    base_url: "https://www.cirsa.com.br"
+    listagem_url: "https://www.cirsa.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina={pagina}"
+    cidade_padrao: "Ipatinga"
+
+    espera_seletor: ".property"
+
+    paginacao:
+      tipo: "url"                 # incrementa {pagina} na listagem_url
+      pagina_inicial: 1
+      max_paginas: 20
+      # se uma página não trouxer nenhum card novo, o scraper para sozinho
+
+    seletores:
+      card: ".property"
+      link: "a"                   # primeiro <a> do card já tem o href do imóvel
+      titulo: "h1.title"          # ex: "Apartamento | HORTO - Ipatinga"
+      preco: ".property-price"
+      thumbnail: ".property-img img"
+      thumbnail_attr: "src"
+
+    # Extrai tipo, bairro e cidade do título: "Tipo | Bairro - Cidade"
+    titulo_regex: '^(?P<tipo>.+?)\s*\|\s*(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$'
+
+# =============================================================================
+# CONFIGURAÇÃO DE AGENDAMENTO
+# =============================================================================
+agendamento:
+  intervalo_horas: 6        # roda a cada 6 horas
+  horario_fixo: "09:10"     # roda todo dia às 9:10 (formato HH:MM)
+
+# =============================================================================
+# GEOCODIFICAÇÃO (bairro -> latitude/longitude)
+# =============================================================================
+geocodificacao:
+  provedor: "nominatim"
+  user_agent: "imoveis-scraper-app (uso pessoal)"
+  pais: "Brasil"

@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+data/*.db
+data/debug_*.html
+data/debug_*.png
+.streamlit/secrets.toml
