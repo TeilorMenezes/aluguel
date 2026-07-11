@@ -64,6 +64,22 @@ def _aplicar_titulo_regex(titulo: str, padrao: str):
     return resultado
 
 
+def _aplicar_endereco_regex(texto: str, padrao: str):
+    """Aplica uma regex nomeada (grupos bairro/cidade) sobre um texto de
+    endereço (ex: 'Bom Retiro, Ipatinga - MG') vindo de um campo separado
+    do título."""
+    resultado = {"bairro": None, "cidade": None}
+    if not texto or not padrao:
+        return resultado
+    m = re.match(padrao, texto.strip(), re.IGNORECASE)
+    if m:
+        grupos = m.groupdict()
+        for chave in resultado:
+            if chave in grupos and grupos[chave]:
+                resultado[chave] = grupos[chave].strip().title()
+    return resultado
+
+
 def _extrair_cards(page, cfg_site: dict):
     """Extrai todos os cards visíveis na página atual e retorna uma lista
     de dicts brutos (ainda sem geocodificação)."""
@@ -82,6 +98,7 @@ def _extrair_cards(page, cfg_site: dict):
             titulo = _texto(card.query_selector(seletores.get("titulo", "")))
             preco_txt = _texto(card.query_selector(seletores.get("preco", "")))
             bairro_txt = _texto(card.query_selector(seletores.get("bairro", ""))) if seletores.get("bairro") else None
+            tipo_txt = _texto(card.query_selector(seletores.get("tipo", ""))) if seletores.get("tipo") else None
 
             thumb_el = card.query_selector(seletores.get("thumbnail", ""))
             thumb_attr = seletores.get("thumbnail_attr", "src")
@@ -90,9 +107,11 @@ def _extrair_cards(page, cfg_site: dict):
                 thumb_url = urljoin(cfg_site["base_url"], thumb_url.strip())
 
             extraido = _aplicar_titulo_regex(titulo, cfg_site.get("titulo_regex"))
-            bairro = bairro_txt or extraido["bairro"]
-            cidade = extraido["cidade"] or cfg_site.get("cidade_padrao")
-            tipo = normalizar_tipo(extraido["tipo"])
+            endereco_extraido = _aplicar_endereco_regex(bairro_txt, cfg_site.get("endereco_regex"))
+
+            bairro = endereco_extraido["bairro"] or bairro_txt or extraido["bairro"]
+            cidade = endereco_extraido["cidade"] or extraido["cidade"] or cfg_site.get("cidade_padrao")
+            tipo = normalizar_tipo(tipo_txt or extraido["tipo"])
 
             itens.append({
                 "url": url_imovel,
@@ -163,6 +182,35 @@ def _raspar_com_paginacao_url(playwright, cfg_site: dict, pag_cfg: dict, headles
     return todos_itens
 
 
+def _executar_acao_inicial(page, cfg_site: dict):
+    """Alguns sites (ex: Certa Imóveis) só carregam os imóveis via AJAX
+    depois que um botão de busca é clicado, mesmo com o filtro já
+    presente na URL. Essa função clica nesse botão, se configurado.
+    Quando existe mais de um elemento com o mesmo seletor (ex: um botão
+    escondido dentro de um painel de "filtros avançados" e outro visível),
+    clica no primeiro que estiver realmente visível na tela."""
+    acao = cfg_site.get("acao_inicial")
+    if not acao:
+        return
+    seletor = acao.get("clicar_seletor")
+    if not seletor:
+        return
+    try:
+        candidatos = page.query_selector_all(seletor)
+        botao = next((b for b in candidatos if b.is_visible()), None)
+        if botao:
+            botao.click()
+            page.wait_for_timeout(acao.get("espera_apos_clique_ms", 3000))
+            espera = acao.get("espera_seletor_apos_clique") or cfg_site.get("espera_seletor")
+            if espera:
+                try:
+                    page.wait_for_selector(espera, timeout=15000)
+                except PWTimeout:
+                    pass
+    except Exception:
+        pass
+
+
 def _raspar_site(playwright, cfg_site: dict, headless=True):
     pag_cfg = cfg_site.get("paginacao", {})
     tipo_paginacao = pag_cfg.get("tipo", "nenhuma")
@@ -181,6 +229,8 @@ def _raspar_site(playwright, cfg_site: dict, headless=True):
                 page.wait_for_selector(espera, timeout=15000)
             except PWTimeout:
                 pass
+
+        _executar_acao_inicial(page, cfg_site)
 
         if tipo_paginacao == "botao":
             itens = _raspar_com_botao(page, cfg_site, pag_cfg)

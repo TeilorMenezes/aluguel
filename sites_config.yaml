@@ -60,6 +60,126 @@ sites:
     # Extrai tipo, bairro e cidade do título: "Tipo | Bairro - Cidade"
     titulo_regex: '^(?P<tipo>.+?)\s*\|\s*(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$'
 
+  # ---------------------------------------------------------------------
+  # NOVOS SITES (adicionados em 10/07/2026)
+  # As URLs de listagem de aluguel já foram confirmadas. Os seletores
+  # abaixo são PLACEHOLDERS — rode inspect_selectors.py para cada uma
+  # das chaves abaixo e me mande o HTML gerado para eu preencher certo,
+  # do mesmo jeito que fizemos com oliveira/cirsa.
+  # ---------------------------------------------------------------------
+
+  certa:
+    nome: "Certa Imóveis"
+    logo: "https://www.certaimoveis.com.br/storage/app/uploads/public/67b/a02/c79/67ba02c7922f3989662105.svg"
+    base_url: "https://www.certaimoveis.com.br"
+    listagem_url: "https://www.certaimoveis.com.br/imoveis/aluguel"
+    cidade_padrao: "Ipatinga"
+    espera_seletor: ".div_imovel"
+    paginacao:
+      tipo: "botao"
+      botao_selector: "button.load_more"
+      max_cliques: 15
+      espera_apos_clique_ms: 1500
+    seletores:
+      card: ".div_imovel"
+      link: "a.abrir_link"
+      titulo: "p.tit"                # ex: "Casa para aluguel"
+      preco: "p.value"                 # ex: "Valor: R$ 1.950,00"
+      bairro: ".infos .address"        # ex: "Ideal - Ipatinga" (cuidado: existe outro
+                                        # .address escondido no card, por isso o escopo ".infos")
+      thumbnail: "figure img.image"
+      thumbnail_attr: "src"
+    # Extrai o tipo do início do título: "Casa para aluguel", "Apartamento para aluguel"...
+    titulo_regex: '^(?P<tipo>.+?)\s+para\s+(?:aluguel|loca[çc][ãa]o)'
+    # Extrai bairro e cidade do formato "Bairro - Cidade"
+    endereco_regex: '^(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$'
+
+  jfcorretor:
+    nome: "JF Corretor Imobiliário"
+    logo: "https://www.jfcorretor.com.br/img/logo-topo.png"
+    base_url: "https://www.jfcorretor.com.br"
+    listagem_url: "https://www.jfcorretor.com.br/imobiliaria/locacao/imoveis/8"
+    cidade_padrao: "Ipatinga"
+    espera_seletor: ".c49-property-card"
+    paginacao:
+      tipo: "nenhuma"   # essa busca fixa só retorna 10 imóveis, sem paginação
+    seletores:
+      card: ".c49-property-card"
+      link: ".c49-property-card_photo a"
+      titulo: ".c49-property-card_title"
+      preco: ".c49-property-card_rent-price"
+      bairro: ".c49-property-card_address"        # ex: "Bom Retiro, Ipatinga - MG"
+      tipo: ".c49-property-card_type"              # ex: "Casa" (campo direto, sem precisar de regex)
+      thumbnail: ".c49-property-card_photo img"
+      thumbnail_attr: "src"
+    # Extrai bairro e cidade do campo de endereço: "Bairro, Cidade - UF"
+    endereco_regex: '^(?P<bairro>.+?),\s*(?P<cidade>.+?)\s*-\s*\w+$'
+
+  realize:
+    nome: "Imobiliária Realize"
+    logo: "https://www.realizeipatinga.com.br/wp-content/uploads/2017/01/logositeazul200x100-2-1.png"
+    base_url: "https://www.realizeipatinga.com.br"
+    listagem_url: "https://www.realizeipatinga.com.br/status/aluguel/page/{pagina}/"
+    cidade_padrao: "Ipatinga"
+    espera_seletor: ".property-item"
+    paginacao:
+      tipo: "url"
+      pagina_inicial: 1
+      max_paginas: 20
+    seletores:
+      card: "article.property-item"
+      link: "h4 a"
+      titulo: "h4 a"                # ex: "Apartamento – Iguaçu"
+      preco: "h5.price"              # ex: "R$ 4.500,00 /mês - Apartamento"
+      thumbnail: "figure img"
+      thumbnail_attr: "src"
+    # Extrai tipo e bairro do título: "Tipo – Bairro" (aceita hífen ou travessão)
+    titulo_regex: '^(?P<tipo>.+?)\s*[–-]\s*(?P<bairro>.+)$'
+
+  correta:
+    nome: "Correta Imóveis"
+    logo: "PREENCHER_url_do_logo"
+    base_url: "https://www.corretaimoveismg.com"
+    listagem_url: "https://www.corretaimoveismg.com/imoveis/aluguel"
+    cidade_padrao: "Ipatinga"
+    espera_seletor: ".work"
+    paginacao:
+      tipo: "nenhuma"   # só 7 imóveis nessa página; existe paginação (/imoveis/aluguel/1)
+                         # mas vamos deixar pra depois, quando validarmos o padrão de URL
+    seletores:
+      card: ".work"
+      link: "a"
+      preco: "h4"                     # ex: "R$ 1.250,00"
+      bairro: "p:nth-of-type(1)"       # ex: "CIDADE NOBRE" (1º <p> do card)
+      tipo: "p:nth-of-type(3)"         # ex: "Tipo: APARTAMENTO"
+      thumbnail: "img"
+      thumbnail_attr: "src"
+    # Só usada para deixar o bairro com capitalização normal (Cidade Nobre
+    # em vez de CIDADE NOBRE) — não tem cidade separada nesse card.
+    endereco_regex: '^(?P<bairro>.+)$'
+
+  allex:
+    nome: "Allex Imóveis"
+    logo: "https://d27dpdmjvijufl.cloudfront.net/fotos/logo/png/2992.png"
+    base_url: "https://alleximoveis.com.br"
+    listagem_url: "https://alleximoveis.com.br/busca/categoria/20382-destaques-de-locacao?operacao=locacao"
+    cidade_padrao: "Ipatinga"
+    espera_seletor: ".box-imovel-resultado"
+    paginacao:
+      tipo: "nenhuma"   # essa página mostra os destaques (~16); paginação completa fica para depois
+    seletores:
+      card: ".box-imovel-resultado"
+      link: "a.imovel"
+      titulo: ".titulo-imovel h3"      # ex: "APARTAMENTO PARA LOCAÇÃO NO JARDIM PANORAMA"
+      preco: ".objeto-valor h5"         # texto "R$ 550,00" ou "Consultar"
+      bairro: ".imagem .info .light"    # ex: "Jardim Panorama - Ipatinga"
+      thumbnail: ".imagem img"
+      thumbnail_attr: "src"
+    # Extrai só o tipo do título (bairro/cidade vêm do campo de endereço)
+    titulo_regex: '^(?P<tipo>.+?)\s+(?:PARA\s+LOCA[ÇC][AÃ]O|EM\s)'
+    # Extrai bairro e cidade do campo de endereço: "Bairro - Cidade"
+    endereco_regex: '^(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$'
+
 # =============================================================================
 # CONFIGURAÇÃO DE AGENDAMENTO
 # =============================================================================

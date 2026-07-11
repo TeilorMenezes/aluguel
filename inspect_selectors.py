@@ -46,6 +46,20 @@ def main(site_key: str):
         print("Aguardando 5s extras para garantir que o JS terminou de renderizar...")
         page.wait_for_timeout(5000)
 
+        acao = cfg_site.get("acao_inicial")
+        if acao and acao.get("clicar_seletor"):
+            print(f"Clicando em '{acao['clicar_seletor']}' (ação inicial configurada)...")
+            try:
+                candidatos = page.query_selector_all(acao["clicar_seletor"])
+                botao = next((b for b in candidatos if b.is_visible()), None)
+                if botao:
+                    botao.click()
+                    page.wait_for_timeout(acao.get("espera_apos_clique_ms", 3000))
+                else:
+                    print(f"  ⚠️ Nenhum dos {len(candidatos)} botão(ões) encontrados está visível.")
+            except Exception as e:
+                print(f"  ⚠️ Erro ao clicar: {e}")
+
         screenshot_path = DATA_DIR / f"debug_{site_key}.png"
         html_path = DATA_DIR / f"debug_{site_key}.html"
 

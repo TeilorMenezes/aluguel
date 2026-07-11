@@ -219,6 +219,7 @@ else:
             with col:
                 thumb = imovel["thumbnail_url"] or "https://via.placeholder.com/400x260?text=Sem+foto"
                 logo = imovel["logo_url"] or ""
+                logo_badge_html = f'<img class="logo-badge" src="{logo}" />' if logo else ""
                 preco = f"R$ {imovel['preco']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if imovel["preco"] else "Consultar"
                 bairro = imovel["bairro"] or "Bairro não informado"
                 cidade = imovel["cidade"] or ""
@@ -229,7 +230,7 @@ else:
                 <div class="card-imovel">
                     <div class="thumb-wrap">
                         <img class="thumb" src="{thumb}" />
-                        <img class="logo-badge" src="{logo}" />
+                        {logo_badge_html}
                         {tipo_badge_html}
                     </div>
                     <div class="card-body">
