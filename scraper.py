@@ -43,6 +43,31 @@ def _normalizar_url_imagem(url):
     ))
 
 
+def _eh_arquivo_de_imagem(url: str) -> bool:
+    """Evita confundir o link de uma foto com a página do imóvel."""
+    if not url:
+        return False
+    return bool(re.search(r"\.(?:avif|gif|jpe?g|png|svg|webp)(?:$|[?#])", url, re.IGNORECASE))
+
+
+def _link_do_imovel(card, seletor_preferido):
+    """Escolhe um link de anúncio, ignorando âncoras que abrem somente fotos."""
+    candidatos = []
+    preferido = _selecionar(card, seletor_preferido)
+    if preferido:
+        candidatos.append(preferido)
+    candidatos.extend(card.query_selector_all("a[href]"))
+    vistos = set()
+    for link in candidatos:
+        href = link.get_attribute("href")
+        if not href or href in vistos:
+            continue
+        vistos.add(href)
+        if not _eh_arquivo_de_imagem(href):
+            return link
+    return None
+
+
 def carregar_config():
     config = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
     # Se a antiga descoberta automática ainda existir no arquivo de uma sessão
@@ -297,7 +322,7 @@ def _extrair_cards(page, cfg_site: dict):
 
     for card in cards:
         try:
-            link_el = card.query_selector(seletores["link"]) if seletores.get("link") else card
+            link_el = _link_do_imovel(card, seletores.get("link"))
             href = link_el.get_attribute("href") if link_el else None
             url_imovel = urljoin(cfg_site["base_url"], href) if href else None
             if not url_imovel:
@@ -320,7 +345,7 @@ def _extrair_cards(page, cfg_site: dict):
             if _parse_preco(preco_txt) is None:
                 preco_txt = _texto_preco_alternativo(card) or preco_txt
 
-            thumb_el = _selecionar(card, seletores.get("thumbnail"))
+            thumb_el = _selecionar(card, seletores.get("thumbnail")) or _selecionar(card, "img")
             thumb_attr = seletores.get("thumbnail_attr", "src")
             thumb_url = thumb_el.get_attribute(thumb_attr) if thumb_el else None
             if thumb_url:
@@ -486,6 +511,10 @@ def rodar_varredura(sites_filtrados=None, headless=True):
 
             urls_ativas = []
             for bruto in itens_brutos:
+                # Proteção final: uma foto nunca deve virar um anúncio no
+                # banco, mesmo se um seletor automático tiver sido impreciso.
+                if _eh_arquivo_de_imagem(bruto.get("url")):
+                    continue
                 lat, lon = geocodificar_bairro(bruto["bairro"], bruto["cidade"])
                 item = {
                     "site_key": site_key,

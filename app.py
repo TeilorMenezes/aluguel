@@ -462,7 +462,7 @@ else:
                 imobiliaria = html.escape(imovel["imobiliaria"])
                 tipo_badge_html = f'<div class="card-tipo">{html.escape(imovel["tipo"])}</div>' if imovel.get("tipo") else ""
 
-                st.markdown(f"""
+                st.html(f"""
                 <div class="card-imovel">
                     <div class="card-body">
                         {tipo_badge_html}
@@ -472,7 +472,7 @@ else:
                         <div class="card-imobiliaria">{imobiliaria}</div>
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
+                """)
                 st.link_button("Ver imóvel", imovel["url"], use_container_width=True)
 
     # ------------------- ABA MAPA -------------------

@@ -61,6 +61,16 @@ def init_db():
                 erro TEXT
             )
         """)
+        # Registros antigos criados por um seletor impreciso podem apontar
+        # para o arquivo da foto, não para o anúncio. Eles não são imóveis.
+        conn.execute("""
+            DELETE FROM imoveis
+            WHERE lower(url) LIKE '%.jpg%'
+               OR lower(url) LIKE '%.jpeg%'
+               OR lower(url) LIKE '%.png%'
+               OR lower(url) LIKE '%.webp%'
+               OR lower(url) LIKE '%.gif%'
+        """)
         _normalizar_registros_existentes(conn)
 
 
