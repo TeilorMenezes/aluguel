@@ -135,12 +135,22 @@ def _extrair_cards(page, cfg_site: dict):
             if not url_imovel:
                 continue
 
-            titulo = _texto(_selecionar(card, seletores.get("titulo")))
-            preco_txt = _texto(_selecionar(card, seletores.get("preco")))
+            titulo_detectado = _texto(_selecionar(card, seletores.get("titulo")))
+            preco_detectado = _texto(_selecionar(card, seletores.get("preco")))
             bairro_txt = _texto(_selecionar(card, seletores.get("bairro")))
             tipo_txt = _texto(_selecionar(card, seletores.get("tipo")))
-            titulo = titulo or _titulo_alternativo(card, link_el) or "Imóvel para alugar"
-            preco_txt = preco_txt or _texto_preco_alternativo(card)
+            titulo_alternativo = _titulo_alternativo(card, link_el)
+            # Um seletor automático pode acertar um rótulo do card (ex.: "Alugar")
+            # em vez do título. Prefira o heading/link mais descritivo quando houver.
+            titulo = titulo_detectado
+            if not titulo or len(titulo) < 8 or titulo.lower() in {"alugar", "imóvel", "imovel"}:
+                titulo = titulo_alternativo or "Imóvel para alugar"
+
+            # Se o seletor apontar para área, código ou um rótulo sem preço, use o
+            # menor elemento interno que contenha R$, que normalmente é o valor real.
+            preco_txt = preco_detectado
+            if _parse_preco(preco_txt) is None:
+                preco_txt = _texto_preco_alternativo(card) or preco_txt
 
             thumb_el = _selecionar(card, seletores.get("thumbnail"))
             thumb_attr = seletores.get("thumbnail_attr", "src")
