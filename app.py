@@ -41,6 +41,7 @@ def garantir_chromium_instalado():
 garantir_chromium_instalado()
 
 db.init_db()
+db.remover_duplicata_diferencial()
 iniciar_agendador()  # cacheado via variável de módulo (só cria os jobs uma vez)
 
 # -----------------------------------------------------------------------

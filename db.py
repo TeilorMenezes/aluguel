@@ -43,6 +43,15 @@ def init_db():
                 coletado_em TEXT
             )
         """)
+
+
+def remover_duplicata_diferencial():
+    """Remove a antiga integração HTML da Diferencial, substituída pela API."""
+    with get_conn() as conn:
+        conn.execute(
+            "DELETE FROM imoveis WHERE site_key = ? OR imobiliaria = ?",
+            ("diferencialimoveis", "diferencialimoveis.com"),
+        )
         conn.execute("""
             CREATE TABLE IF NOT EXISTS geocode_cache (
                 chave TEXT PRIMARY KEY,

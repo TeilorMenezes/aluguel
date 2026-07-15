@@ -27,7 +27,14 @@ CONFIG_PATH = Path(__file__).parent / "sites_config.yaml"
 
 
 def carregar_config():
-    return yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+    config = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+    # Se a antiga descoberta automática ainda existir no arquivo de uma sessão
+    # anterior, ignore-a: a fonte oficial usa a integração imoview_api.
+    for chave, site in list(config["sites"].items()):
+        host = urlparse(site.get("base_url", "")).netloc.removeprefix("www.")
+        if host == "diferencialimoveis.com" and site.get("integracao") != "imoview_api":
+            del config["sites"][chave]
+    return config
 
 
 def _texto(elemento):
