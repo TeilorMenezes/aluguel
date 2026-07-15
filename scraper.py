@@ -18,6 +18,7 @@ import yaml
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 import db
+from detector import detectar_seletores, salvar_padrao
 from geocode import geocodificar_bairro
 from tipos import normalizar_tipo
 
@@ -120,6 +121,45 @@ def _titulo_alternativo(card, link_el):
     return imagem.get_attribute("alt") if imagem else None
 
 
+def _qualidade_extracao(itens):
+    """Mede se título e preço foram preenchidos em uma quantidade aceitável de cards."""
+    if not itens:
+        return 0.0
+    titulos = sum(bool(i.get("titulo")) and i["titulo"] != "Imóvel para alugar" for i in itens) / len(itens)
+    precos = sum(i.get("preco") is not None for i in itens) / len(itens)
+    return min(titulos, precos)
+
+
+def _extrair_com_autocorrecao(page, cfg_site):
+    """Extrai e, se os campos essenciais falharem, aprende novos seletores.
+
+    A correção só é aceita quando a nova extração melhora objetivamente a
+    proporção de títulos e preços preenchidos. Assim, um palpite ruim não
+    substitui uma configuração que já funciona.
+    """
+    itens_originais = _extrair_cards(page, cfg_site)
+    qualidade_original = _qualidade_extracao(itens_originais)
+    if qualidade_original >= 0.8:
+        return itens_originais
+
+    try:
+        sugestao = detectar_seletores(page.content())
+        novos_seletores = sugestao.get("seletores", {})
+        if sugestao.get("erro") or not {"card", "link", "preco"}.issubset(novos_seletores):
+            return itens_originais
+
+        seletores_anteriores = cfg_site["seletores"]
+        cfg_site["seletores"] = {**seletores_anteriores, **novos_seletores}
+        itens_corrigidos = _extrair_cards(page, cfg_site)
+        if _qualidade_extracao(itens_corrigidos) > qualidade_original:
+            salvar_padrao(sugestao.get("plataforma", "generico"), cfg_site["seletores"])
+            return itens_corrigidos
+        cfg_site["seletores"] = seletores_anteriores
+    except Exception:
+        pass
+    return itens_originais
+
+
 def _extrair_cards(page, cfg_site: dict):
     """Extrai todos os cards visíveis na página atual e retorna uma lista
     de dicts brutos (ainda sem geocodificação)."""
@@ -195,7 +235,7 @@ def _raspar_com_botao(page, cfg_site: dict, pag_cfg: dict):
             break
         page.wait_for_timeout(espera_ms)
 
-    return _extrair_cards(page, cfg_site)
+    return _extrair_com_autocorrecao(page, cfg_site)
 
 
 def _raspar_com_paginacao_url(playwright, cfg_site: dict, pag_cfg: dict, headless: bool):
@@ -219,7 +259,7 @@ def _raspar_com_paginacao_url(playwright, cfg_site: dict, pag_cfg: dict, headles
                 except PWTimeout:
                     break  # provavelmente não há mais páginas com conteúdo
 
-            itens_pagina = _extrair_cards(page, cfg_site)
+            itens_pagina = _extrair_com_autocorrecao(page, cfg_site)
             novos = [i for i in itens_pagina if i["url"] not in urls_vistas]
             if not novos:
                 break
@@ -287,7 +327,7 @@ def _raspar_site(playwright, cfg_site: dict, headless=True):
         if tipo_paginacao == "botao":
             itens = _raspar_com_botao(page, cfg_site, pag_cfg)
         else:
-            itens = _extrair_cards(page, cfg_site)
+            itens = _extrair_com_autocorrecao(page, cfg_site)
     finally:
         browser.close()
 
