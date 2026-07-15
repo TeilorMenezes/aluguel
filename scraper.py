@@ -12,7 +12,7 @@ import re
 import time
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import yaml
 import requests
@@ -22,6 +22,7 @@ import db
 from detector import detectar_seletores, salvar_padrao
 from geocode import geocodificar_bairro
 from tipos import normalizar_tipo
+from normalizacao import normalizar_localizacao
 
 CONFIG_PATH = Path(__file__).parent / "sites_config.yaml"
 
@@ -252,13 +253,16 @@ def _raspar_imoview(cfg_site: dict):
             if not thumb and fotos:
                 thumb = fotos[0].get("urlp") or fotos[0].get("url")
             valor = next((bruto.get(campo) for campo in ("valor", "valoraluguel", "valor_aluguel", "valorlocacao") if bruto.get(campo) is not None), None)
+            bairro, cidade = normalizar_localizacao(
+                bruto.get("bairro"), bruto.get("cidade"), cfg_site.get("cidade_padrao")
+            )
             itens.append({
                 "url": url,
                 "titulo": bruto.get("titulo") or f"{bruto.get('tipo') or 'Imóvel'} para alugar",
                 "tipo": normalizar_tipo(bruto.get("tipo")),
                 "preco": _parse_preco(str(valor)) if valor is not None else None,
-                "bairro": bruto.get("bairro"),
-                "cidade": bruto.get("cidade") or cfg_site.get("cidade_padrao"),
+                "bairro": bairro,
+                "cidade": cidade,
                 "thumbnail_url": thumb,
             })
             novos += 1
@@ -310,6 +314,7 @@ def _extrair_cards(page, cfg_site: dict):
 
             bairro = endereco_extraido["bairro"] or bairro_txt or extraido["bairro"]
             cidade = endereco_extraido["cidade"] or extraido["cidade"] or cfg_site.get("cidade_padrao")
+            bairro, cidade = normalizar_localizacao(bairro, cidade, cfg_site.get("cidade_padrao"))
             tipo = normalizar_tipo(tipo_txt or extraido["tipo"])
 
             itens.append({

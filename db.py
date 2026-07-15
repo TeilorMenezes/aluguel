@@ -8,6 +8,8 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
+from normalizacao import normalizar_imobiliaria, normalizar_localizacao
+
 DB_PATH = Path(__file__).parent / "data" / "imoveis.db"
 DB_PATH.parent.mkdir(exist_ok=True)
 
@@ -43,6 +45,35 @@ def init_db():
                 coletado_em TEXT
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS geocode_cache (
+                chave TEXT PRIMARY KEY,
+                latitude REAL,
+                longitude REAL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS execucoes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                executado_em TEXT,
+                tipo TEXT,
+                imoveis_coletados INTEGER,
+                erro TEXT
+            )
+        """)
+        _normalizar_registros_existentes(conn)
+
+
+def _normalizar_registros_existentes(conn):
+    """Migração idempotente dos valores antigos que alimentam os filtros."""
+    linhas = conn.execute("SELECT id, bairro, cidade, imobiliaria FROM imoveis").fetchall()
+    for linha in linhas:
+        bairro, cidade = normalizar_localizacao(linha["bairro"], linha["cidade"])
+        imobiliaria = normalizar_imobiliaria(linha["imobiliaria"])
+        conn.execute(
+            "UPDATE imoveis SET bairro = ?, cidade = ?, imobiliaria = ? WHERE id = ?",
+            (bairro, cidade, imobiliaria or linha["imobiliaria"], linha["id"]),
+        )
 
 
 def remover_duplicata_diferencial():
@@ -72,6 +103,9 @@ def remover_duplicata_diferencial():
 
 def upsert_imovel(item: dict):
     """Insere ou atualiza um imóvel (chave única = url)."""
+    item = dict(item)
+    item["bairro"], item["cidade"] = normalizar_localizacao(item.get("bairro"), item.get("cidade"))
+    item["imobiliaria"] = normalizar_imobiliaria(item.get("imobiliaria")) or item["imobiliaria"]
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO imoveis

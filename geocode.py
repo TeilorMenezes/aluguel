@@ -21,7 +21,9 @@ _geocode_rate_limited = RateLimiter(_geolocator.geocode, min_delay_seconds=1.1, 
 
 def geocodificar_bairro(bairro: str, cidade: str):
     """Retorna (lat, lon) para um bairro+cidade, usando cache quando disponível."""
-    if not bairro:
+    # Sem bairro não há posição confiável: geocodificar apenas a cidade faria
+    # o mapa sugerir um endereço exato que o portal não informou.
+    if not bairro or not cidade:
         return (None, None)
 
     cidade = cidade or ""
