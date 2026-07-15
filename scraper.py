@@ -332,6 +332,17 @@ def _extrair_cards(page, cfg_site: dict):
             preco_detectado = _texto(_selecionar(card, seletores.get("preco")))
             bairro_txt = _texto(_selecionar(card, seletores.get("bairro")))
             tipo_txt = _texto(_selecionar(card, seletores.get("tipo")))
+            status_txt = _texto(_selecionar(card, seletores.get("status")))
+
+            # Algumas páginas de listagem misturam venda e aluguel. Quando a
+            # fonte foi configurada para aluguel, aceite somente os cards cujo
+            # próprio site informa esse status — sem depender do texto do título.
+            if cfg_site.get("finalidade") == "aluguel":
+                status_normalizado = status_txt.casefold()
+                if not any(
+                    termo in status_normalizado for termo in ("aluguel", "locaç", "locac")
+                ):
+                    continue
             titulo_alternativo = _titulo_alternativo(card, link_el)
             # Um seletor automático pode acertar um rótulo do card (ex.: "Alugar")
             # em vez do título. Prefira o heading/link mais descritivo quando houver.
@@ -354,8 +365,12 @@ def _extrair_cards(page, cfg_site: dict):
             extraido = _aplicar_titulo_regex(titulo, cfg_site.get("titulo_regex"))
             endereco_extraido = _aplicar_endereco_regex(bairro_txt, cfg_site.get("endereco_regex"))
 
-            bairro = endereco_extraido["bairro"] or bairro_txt or extraido["bairro"]
-            cidade = endereco_extraido["cidade"] or extraido["cidade"] or cfg_site.get("cidade_padrao")
+            if cfg_site.get("preferir_localizacao_titulo"):
+                bairro = extraido["bairro"] or endereco_extraido["bairro"] or bairro_txt
+                cidade = extraido["cidade"] or endereco_extraido["cidade"] or cfg_site.get("cidade_padrao")
+            else:
+                bairro = endereco_extraido["bairro"] or bairro_txt or extraido["bairro"]
+                cidade = endereco_extraido["cidade"] or extraido["cidade"] or cfg_site.get("cidade_padrao")
             bairro, cidade = normalizar_localizacao(bairro, cidade, cfg_site.get("cidade_padrao"))
             tipo = normalizar_tipo(tipo_txt or extraido["tipo"])
 
@@ -403,7 +418,16 @@ def _raspar_com_paginacao_url(playwright, cfg_site: dict, pag_cfg: dict, headles
 
     try:
         for _ in range(max_paginas):
-            url_pagina = cfg_site["listagem_url"].format(pagina=pagina)
+            listagem_url = cfg_site["listagem_url"]
+            if "{pagina}" in listagem_url:
+                url_pagina = listagem_url.format(pagina=pagina)
+            elif pagina == pag_cfg.get("pagina_inicial", 1):
+                url_pagina = listagem_url
+            else:
+                # Padrão do WordPress/Essential Real Estate: /imoveis/page/2/.
+                partes = urlsplit(listagem_url)
+                caminho = partes.path.rstrip("/") + f"/page/{pagina}/"
+                url_pagina = urlunsplit((partes.scheme, partes.netloc, caminho, partes.query, partes.fragment))
             page.goto(url_pagina, timeout=45000, wait_until="networkidle")
 
             espera = cfg_site.get("espera_seletor")

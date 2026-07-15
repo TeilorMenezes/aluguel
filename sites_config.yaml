@@ -207,11 +207,26 @@ sites:
     nome: "Moradia Imobiliária"
     logo: ""
     base_url: "https://moradiaimobiliaria.com.br"
-    listagem_url: "https://moradiaimobiliaria.com.br/imoveis/?sortby=most_viewed&status=aluguel"
+    listagem_url: "https://moradiaimobiliaria.com.br/imoveis/"
     cidade_padrao: "Ipatinga"
+    finalidade: "aluguel"
+    preferir_localizacao_titulo: true
     paginacao:
-      tipo: "nenhuma"
-    seletores: {}
+      tipo: "url"
+      pagina_inicial: 1
+      max_paginas: 20
+    espera_seletor: ".ere-item-wrap"
+    seletores:
+      card: ".ere-item-wrap"
+      link: "h2.property-title a[href]"
+      titulo: "h2.property-title"
+      preco: ".property-price"
+      bairro: ".property-location"
+      tipo: ".property-type-list"
+      status: ".property-status"
+      thumbnail: ".property-image img"
+      thumbnail_attr: "src"
+    titulo_regex: "^(?P<tipo>.+?)\\s+(?:para\\s+alugar|a\\s+venda).*?\\s+(?:no|na|em)\\s+(?P<bairro>.+?)\\s+em\\s+(?P<cidade>.+)$"
 
 # =============================================================================
 # CONFIGURAÇÃO DE AGENDAMENTO
