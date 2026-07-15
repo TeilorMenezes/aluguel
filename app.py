@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import hmac
+import html
 import re
 import unicodedata
 from pathlib import Path
@@ -68,6 +69,15 @@ st.markdown("""
     height: 100%;
     object-fit: cover;
     display: block;
+}
+.thumb-wrap.thumb-missing::after {
+    content: "Imagem indisponível";
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: #737373;
+    font-size: 0.9rem;
 }
 .logo-badge {
     position: absolute;
@@ -424,8 +434,8 @@ else:
         for i, imovel in enumerate(imoveis):
             col = colunas[i % colunas_por_linha]
             with col:
-                thumb = imovel["thumbnail_url"] or "https://via.placeholder.com/400x260?text=Sem+foto"
-                logo = imovel["logo_url"] or ""
+                thumb = html.escape(imovel["thumbnail_url"] or "", quote=True)
+                logo = html.escape(imovel["logo_url"] or "", quote=True)
                 logo_badge_html = f'<img class="logo-badge" src="{logo}" />' if logo else ""
                 preco = f"R$ {imovel['preco']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if imovel["preco"] else "Consultar"
                 bairro = imovel["bairro"] or "Bairro não informado"
@@ -436,7 +446,8 @@ else:
                 st.markdown(f"""
                 <div class="card-imovel">
                     <div class="thumb-wrap">
-                        <img class="thumb" src="{thumb}" />
+                        <img class="thumb" src="{thumb}" referrerpolicy="no-referrer"
+                             onerror="this.remove(); this.parentElement.classList.add('thumb-missing');" />
                         {logo_badge_html}
                         {tipo_badge_html}
                     </div>

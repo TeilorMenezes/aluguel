@@ -12,7 +12,7 @@ import re
 import time
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote, urljoin, urlparse, urlsplit, urlunsplit
 
 import yaml
 import requests
@@ -25,6 +25,22 @@ from tipos import normalizar_tipo
 from normalizacao import normalizar_localizacao
 
 CONFIG_PATH = Path(__file__).parent / "sites_config.yaml"
+
+
+def _normalizar_url_imagem(url):
+    """Codifica nomes de arquivo da CDN sem alterar a URL de origem.
+
+    A Imoview publica fotos com espaços, vírgulas e acentos no caminho. Ao
+    abrir a URL diretamente o navegador costuma corrigir isso, mas um ``img``
+    incorporado pode não fazê-lo de forma consistente.
+    """
+    if not url:
+        return None
+    partes = urlsplit(url.strip())
+    return urlunsplit((
+        partes.scheme, partes.netloc, quote(partes.path, safe="/%"),
+        quote(partes.query, safe="=&/%"), partes.fragment,
+    ))
 
 
 def carregar_config():
@@ -252,6 +268,7 @@ def _raspar_imoview(cfg_site: dict):
             thumb = bruto.get("urlfotoprincipalp")
             if not thumb and fotos:
                 thumb = fotos[0].get("urlp") or fotos[0].get("url")
+            thumb = _normalizar_url_imagem(thumb)
             valor = next((bruto.get(campo) for campo in ("valor", "valoraluguel", "valor_aluguel", "valorlocacao") if bruto.get(campo) is not None), None)
             bairro, cidade = normalizar_localizacao(
                 bruto.get("bairro"), bruto.get("cidade"), cfg_site.get("cidade_padrao")
@@ -307,7 +324,7 @@ def _extrair_cards(page, cfg_site: dict):
             thumb_attr = seletores.get("thumbnail_attr", "src")
             thumb_url = thumb_el.get_attribute(thumb_attr) if thumb_el else None
             if thumb_url:
-                thumb_url = urljoin(cfg_site["base_url"], thumb_url.strip())
+                thumb_url = _normalizar_url_imagem(urljoin(cfg_site["base_url"], thumb_url.strip()))
 
             extraido = _aplicar_titulo_regex(titulo, cfg_site.get("titulo_regex"))
             endereco_extraido = _aplicar_endereco_regex(bairro_txt, cfg_site.get("endereco_regex"))
