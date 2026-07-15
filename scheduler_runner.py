@@ -67,6 +67,17 @@ def rodar_agora_async():
     return thread
 
 
+def rodar_site_agora_async(site_key: str):
+    """Executa em segundo plano somente uma imobiliária recém-cadastrada."""
+    def job():
+        with _lock:
+            rodar_varredura(sites_filtrados=[site_key], headless=True)
+
+    thread = threading.Thread(target=job, daemon=True)
+    thread.start()
+    return thread
+
+
 def proximas_execucoes():
     if _scheduler is None:
         return []

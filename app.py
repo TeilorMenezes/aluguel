@@ -1,6 +1,10 @@
 import subprocess
 import sys
+import hmac
+import re
+import unicodedata
 from pathlib import Path
+from urllib.parse import urlparse
 
 import streamlit as st
 import folium
@@ -9,8 +13,8 @@ from folium.plugins import MarkerCluster
 from streamlit_folium import st_folium
 
 import db
-from detector import detectar_seletores
-from scheduler_runner import iniciar_agendador, rodar_agora_async
+from detector import detectar_seletores, inspecionar_url
+from scheduler_runner import iniciar_agendador, rodar_agora_async, rodar_site_agora_async
 
 st.set_page_config(page_title="Imóveis para Alugar", layout="wide", page_icon="🏠")
 
@@ -114,33 +118,117 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
+def renderizar_administracao():
+    """Ações que só podem ser exibidas após autenticação administrativa."""
+    st.subheader("🔒 Administração")
+    st.caption("As alterações de configuração e a atualização manual ficam restritas a administradores.")
+
+    if st.button("🔄 Atualizar agora", key="atualizar_agora", use_container_width=True):
+        with st.spinner("Buscando imóveis nos sites configurados..."):
+            rodar_agora_async().join()
+        st.success("Atualizado!")
+
+    st.divider()
+    st.subheader("Adicionar imobiliária por URL")
+    st.caption("O sistema abre a página, identifica os cards e cria uma configuração inicial. Use somente URLs de listagem de aluguel autorizadas pela imobiliária.")
+    with st.form("nova_imobiliaria"):
+        nova_url = st.text_input("URL da página de imóveis para aluguel")
+        nova_cidade = st.text_input("Cidade padrão", value="Ipatinga")
+        cadastrar = st.form_submit_button("Inspecionar e adicionar", use_container_width=True)
+
+    if cadastrar:
+        if not nova_url.strip():
+            st.error("Informe a URL da página de listagem.")
+        else:
+            with st.spinner("Abrindo a imobiliária e identificando os seletores..."):
+                nova_deteccao = inspecionar_url(nova_url)
+            if nova_deteccao.get("erro"):
+                st.error(nova_deteccao["erro"])
+            elif nova_deteccao["confianca"] < 0.65:
+                st.error("A confiança da detecção foi baixa. Use o envio manual de HTML abaixo para revisar os seletores.")
+            else:
+                url_final = nova_deteccao["url"]
+                host = urlparse(url_final).netloc.removeprefix("www.")
+                chave = unicodedata.normalize("NFKD", host.split(".")[0]).encode("ascii", "ignore").decode().lower()
+                chave = re.sub(r"[^a-z0-9]+", "_", chave).strip("_") or "nova_imobiliaria"
+                config_path = Path(__file__).parent / "sites_config.yaml"
+                config_atual = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+                chave_base, numero = chave, 2
+                while chave in config_atual["sites"]:
+                    chave = f"{chave_base}_{numero}"
+                    numero += 1
+                config_atual["sites"][chave] = {
+                    "nome": host,
+                    "logo": "",
+                    "base_url": f"{urlparse(url_final).scheme}://{urlparse(url_final).netloc}",
+                    "listagem_url": url_final,
+                    "cidade_padrao": nova_cidade.strip() or "Ipatinga",
+                    "espera_seletor": nova_deteccao["seletores"]["card"],
+                    "paginacao": {"tipo": "nenhuma"},
+                    "seletores": nova_deteccao["seletores"],
+                }
+                config_path.write_text(yaml.safe_dump(config_atual, allow_unicode=True, sort_keys=False), encoding="utf-8")
+                st.success(f"Imobiliária adicionada como '{chave}'. Fazendo a primeira coleta...")
+                rodar_site_agora_async(chave).join()
+                st.success("Primeira coleta concluída. Atualize a página para ver os imóveis.")
+
+    st.divider()
+    st.subheader("Detectar seletores")
+    st.caption("Envie o HTML renderizado gerado por `inspect_selectors.py`. Revise a sugestão antes de salvar.")
+    html_enviado = st.file_uploader("HTML da listagem", type=["html", "htm"], key="html_detector")
+    if not html_enviado:
+        return
+
+    resultado_detector = detectar_seletores(html_enviado.getvalue().decode("utf-8", errors="replace"))
+    if resultado_detector.get("erro"):
+        st.error(resultado_detector["erro"])
+        return
+
+    st.success(f"{resultado_detector['cards_encontrados']} cards; confiança {resultado_detector['confianca']:.0%}")
+    st.code(yaml.safe_dump(resultado_detector["seletores"], allow_unicode=True, sort_keys=False), language="yaml")
+    st.warning(resultado_detector["aviso"])
+    config_path = Path(__file__).parent / "sites_config.yaml"
+    config_atual = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    site_destino = st.selectbox("Aplicar sugestão ao site", list(config_atual["sites"]), key="site_detector")
+    if st.button("Salvar seletores sugeridos", key="salvar_detector", use_container_width=True):
+        config_atual["sites"][site_destino]["seletores"].update(resultado_detector["seletores"])
+        config_path.write_text(
+            yaml.safe_dump(config_atual, allow_unicode=True, sort_keys=False), encoding="utf-8"
+        )
+        st.success(f"Seletores salvos para {site_destino} em sites_config.yaml.")
+
 # -----------------------------------------------------------------------
-# Sidebar: status + botão de atualização manual + filtros
+# Sidebar: autenticação e filtros
 # -----------------------------------------------------------------------
 st.sidebar.header("🏠 Imóveis para Alugar")
 
-with st.sidebar.expander("🛠️ Administrar seletores"):
-    st.caption("Envie o HTML renderizado gerado por `inspect_selectors.py`. Revise a sugestão antes de alterar o YAML.")
-    html_enviado = st.file_uploader("HTML da listagem", type=["html", "htm"], key="html_detector")
-    if html_enviado:
-        resultado_detector = detectar_seletores(html_enviado.getvalue().decode("utf-8", errors="replace"))
-        if resultado_detector.get("erro"):
-            st.error(resultado_detector["erro"])
-        else:
-            st.success(f"{resultado_detector['cards_encontrados']} cards; confiança {resultado_detector['confianca']:.0%}")
-            st.code(yaml.safe_dump(resultado_detector["seletores"], allow_unicode=True, sort_keys=False), language="yaml")
-            st.warning(resultado_detector["aviso"])
-            config_path = Path(__file__).parent / "sites_config.yaml"
-            config_atual = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-            site_destino = st.selectbox(
-                "Aplicar sugestão ao site", list(config_atual["sites"]), key="site_detector"
-            )
-            if st.button("Salvar seletores sugeridos", key="salvar_detector", use_container_width=True):
-                config_atual["sites"][site_destino]["seletores"].update(resultado_detector["seletores"])
-                config_path.write_text(
-                    yaml.safe_dump(config_atual, allow_unicode=True, sort_keys=False), encoding="utf-8"
-                )
-                st.success(f"Seletores salvos para {site_destino} em sites_config.yaml.")
+if "admin_autenticado" not in st.session_state:
+    st.session_state.admin_autenticado = False
+
+try:
+    senha_admin = st.secrets["ADMIN_PASSWORD"]
+except Exception:
+    senha_admin = None
+
+if st.session_state.admin_autenticado:
+    st.sidebar.success("Acesso administrativo ativo")
+    if st.sidebar.button("Sair da administração", use_container_width=True):
+        st.session_state.admin_autenticado = False
+        st.rerun()
+else:
+    with st.sidebar.expander("Acesso administrativo"):
+        tentativa = st.text_input("Senha", type="password", key="senha_admin")
+        if st.button("Entrar", key="entrar_admin", use_container_width=True):
+            if senha_admin and hmac.compare_digest(tentativa, senha_admin):
+                st.session_state.admin_autenticado = True
+                st.rerun()
+            elif not senha_admin:
+                st.error("Defina ADMIN_PASSWORD nos Secrets do Streamlit.")
+            else:
+                st.error("Senha incorreta.")
+
+admin_logado = st.session_state.admin_autenticado
 
 ultima = db.ultima_execucao()
 if ultima:
@@ -150,12 +238,6 @@ if ultima:
         st.sidebar.warning(f"Aviso na última varredura: {ultima['erro']}")
 else:
     st.sidebar.caption("Nenhuma varredura executada ainda.")
-
-if st.sidebar.button("🔄 Atualizar agora", use_container_width=True):
-    with st.spinner("Buscando imóveis nos sites configurados..."):
-        rodar_agora_async().join()
-    st.sidebar.success("Atualizado!")
-    st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Filtros")
@@ -169,8 +251,16 @@ cidades_selecionadas = st.sidebar.multiselect(
 if not cidades_selecionadas:
     st.sidebar.info("⬆️ Selecione uma cidade para liberar os demais filtros.")
 
-    st.title("Imóveis disponíveis para alugar")
-    st.info("👋 Para começar, escolha uma **cidade** na barra lateral.")
+    if admin_logado:
+        aba_inicio, aba_admin = st.tabs(["🏠 Início", "🔒 Administração"])
+        with aba_inicio:
+            st.title("Imóveis disponíveis para alugar")
+            st.info("👋 Para começar, escolha uma **cidade** na barra lateral.")
+        with aba_admin:
+            renderizar_administracao()
+    else:
+        st.title("Imóveis disponíveis para alugar")
+        st.info("👋 Para começar, escolha uma **cidade** na barra lateral.")
     st.stop()
 
 bairros_disponiveis = db.listar_bairros(cidades=cidades_selecionadas)
@@ -231,10 +321,14 @@ elif ordenar_por == "preco_desc":
 if not imoveis:
     st.info(
         "Nenhum imóvel no banco ainda (ou nenhum bateu com os filtros). "
-        "Clique em '🔄 Atualizar agora' na barra lateral para rodar a primeira varredura."
+        "Administradores podem rodar uma atualização pela aba Administração."
     )
+    if admin_logado:
+        with st.tabs(["🔒 Administração"])[0]:
+            renderizar_administracao()
 else:
-    aba_lista, aba_mapa = st.tabs(["📋 Lista de imóveis", "🗺️ Mapa"])
+    abas = st.tabs(["📋 Lista de imóveis", "🗺️ Mapa"] + (["🔒 Administração"] if admin_logado else []))
+    aba_lista, aba_mapa = abas[:2]
 
     # ------------------- ABA LISTA (showpage / grid de cards) -------------------
     with aba_lista:
@@ -301,3 +395,7 @@ else:
                 ).add_to(cluster)
 
             st_folium(mapa, use_container_width=True, height=600)
+
+    if admin_logado:
+        with abas[2]:
+            renderizar_administracao()

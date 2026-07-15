@@ -1,8 +1,10 @@
 """Detecção heurística de seletores CSS em HTML renderizado de listagens."""
 import re
 from collections import Counter, defaultdict
+from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
+from playwright.sync_api import TimeoutError as PWTimeout, sync_playwright
 
 
 PRECO_RE = re.compile(r"(?:R\$\s*)?\d{1,3}(?:\.\d{3})*(?:,\d{2})|consultar", re.I)
@@ -93,3 +95,31 @@ def detectar_seletores(html: str) -> dict:
         "cards_encontrados": quantidade,
         "aviso": "Revise os seletores antes de salvar; bairro e título podem exigir ajuste manual.",
     }
+
+
+def inspecionar_url(url: str) -> dict:
+    """Abre uma URL com Chromium e detecta seletores no HTML renderizado.
+
+    O carregamento é feito com JavaScript habilitado, pois os portais de
+    imóveis normalmente não entregam os cards no HTML inicial.
+    """
+    url = url.strip()
+    if not urlparse(url).scheme:
+        url = f"https://{url}"
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page(user_agent="Mozilla/5.0 (compatible; ImoveisScraperApp/1.0)")
+            try:
+                page.goto(url, timeout=60000, wait_until="domcontentloaded")
+                page.wait_for_timeout(4000)
+                resultado = detectar_seletores(page.content())
+                resultado["url"] = page.url
+                return resultado
+            finally:
+                browser.close()
+    except PWTimeout:
+        return {"erro": "A página demorou demais para responder."}
+    except Exception as exc:
+        return {"erro": f"Não foi possível inspecionar a URL: {exc}"}
