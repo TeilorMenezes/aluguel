@@ -199,9 +199,20 @@ sites:
     base_url: "https://portalimoveisimobiliaria.com.br"
     listagem_url: "https://portalimoveisimobiliaria.com.br/imoveis-locacao"
     cidade_padrao: "Ipatinga"
+    espera_seletor: ".featured-thumb.item"
     paginacao:
       tipo: "nenhuma"
-    seletores: {}
+    seletores:
+      card: ".featured-thumb.item"
+      # Evita os links do carrossel de fotos e usa o link textual do anúncio.
+      link: ".featured-thumb-data a[href*='/imoveis-locacao/']"
+      titulo: ".product-title"
+      preco: ".price"
+      bairro: ".product-title"
+      tipo: "h5"
+      thumbnail: ".carousel-item img"
+      thumbnail_attr: "data-src"
+    endereco_regex: '^(?:.+?)\s+para\s+aluguel.*?,\s*(?P<bairro>.+?)\s*-\s*(?P<cidade>[^/]+)'
 
   moradia:
     nome: "Moradia Imobiliária"
