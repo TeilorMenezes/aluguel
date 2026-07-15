@@ -319,6 +319,25 @@ sites:
       thumbnail_attr: "src"
     titulo_regex: '^(?P<tipo>.+?)\s*\|\s*(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$'
 
+  portal_timoteo:
+    nome: "Portal Imóveis Timóteo"
+    logo: ""
+    base_url: "https://www.imobiliariaportalmg.com.br"
+    listagem_url: "https://www.imobiliariaportalmg.com.br/imoveis_listagem.php?neg=locacao"
+    cidade_padrao: "Timóteo"
+    espera_seletor: "li.li-imovel"
+    paginacao:
+      tipo: "nenhuma"
+    seletores:
+      card: "li.li-imovel"
+      link: "a.li-imovel__imagem-link"
+      titulo: "h3.li-imovel__titulo"
+      preco: "div.li-imovel__descricao"
+      bairro: "span.li-imovel__bairro"
+      thumbnail: "img.li-imovel__imagem"
+      thumbnail_attr: "src"
+    titulo_regex: '^(?P<tipo>.+?)\s+(?P<bairro>.+?)\s*[–-]\s*(?P<cidade>.+)$'
+
 # =============================================================================
 # CONFIGURAÇÃO DE AGENDAMENTO
 # =============================================================================
