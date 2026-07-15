@@ -63,6 +63,9 @@ st.markdown("""
     width: 100%;
     height: 180px;
     background-color: #f2f2f2;
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
 }
 .thumb-wrap img.thumb {
     width: 100%;
@@ -441,28 +444,27 @@ else:
                 # ao abrir o anúncio original pelo botão abaixo.
                 imagem_bloqueada = "cdn.imoview.com.br" in thumb_original.lower()
                 thumb = html.escape(thumb_original, quote=True)
-                thumb_html = "" if imagem_bloqueada or not thumb else f'<img class="thumb" src="{thumb}" />'
+                # A imagem como fundo não produz o ícone quebrado do navegador
+                # nem interfere com o HTML interno quando a CDN a bloqueia.
+                thumb_style = "" if imagem_bloqueada or not thumb else f" style=\"background-image: url('{thumb}')\""
                 thumb_estado = " thumb-missing" if imagem_bloqueada or not thumb else ""
-                logo = html.escape(imovel["logo_url"] or "", quote=True)
-                logo_badge_html = f'<img class="logo-badge" src="{logo}" />' if logo else ""
                 preco = f"R$ {imovel['preco']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if imovel["preco"] else "Consultar"
                 bairro = imovel["bairro"] or "Bairro não informado"
-                cidade = imovel["cidade"] or ""
-                titulo = imovel["titulo"] or imovel["imobiliaria"]
-                tipo_badge_html = f'<div class="tipo-badge">{imovel["tipo"]}</div>' if imovel.get("tipo") else ""
+                cidade = html.escape(imovel["cidade"] or "")
+                titulo = html.escape(imovel["titulo"] or imovel["imobiliaria"])
+                imobiliaria = html.escape(imovel["imobiliaria"])
+                tipo_badge_html = f'<div class="tipo-badge">{html.escape(imovel["tipo"])}</div>' if imovel.get("tipo") else ""
 
                 st.markdown(f"""
                 <div class="card-imovel">
-                    <div class="thumb-wrap{thumb_estado}">
-                        {thumb_html}
-                        {logo_badge_html}
+                    <div class="thumb-wrap{thumb_estado}"{thumb_style}>
                         {tipo_badge_html}
                     </div>
                     <div class="card-body">
                         <div class="card-titulo">{titulo}</div>
                         <div class="card-preco">{preco}/mês</div>
                         <div class="card-bairro">{bairro}{', ' + cidade if cidade else ''}</div>
-                        <div class="card-imobiliaria">{imovel['imobiliaria']}</div>
+                        <div class="card-imobiliaria">{imobiliaria}</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
