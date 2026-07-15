@@ -39,10 +39,13 @@ def _parse_preco(texto: str):
     """Converte 'R$ 1.200,00  Código. 6089' -> 1200.0 (pega só o 1º número)."""
     if not texto:
         return None
-    m = re.search(r"[\d\.]+,\d{2}|\d+", texto)
+    # Prioriza o valor após R$ para não confundir código do imóvel, área ou quartos com preço.
+    m = re.search(r"R\$\s*([\d\.]+(?:,\d{2})?)", texto, re.IGNORECASE)
+    if not m:
+        m = re.search(r"[\d\.]+,\d{2}|\d+", texto)
     if not m:
         return None
-    numeros = m.group(0).replace(".", "").replace(",", ".")
+    numeros = (m.group(1) if m.lastindex else m.group(0)).replace(".", "").replace(",", ".")
     try:
         return float(numeros)
     except ValueError:
@@ -80,6 +83,43 @@ def _aplicar_endereco_regex(texto: str, padrao: str):
     return resultado
 
 
+def _selecionar(card, seletor):
+    """Consulta um seletor opcional sem deixar um valor vazio invalidar o card."""
+    if not seletor:
+        return None
+    try:
+        return card.query_selector(seletor)
+    except Exception:
+        return None
+
+
+def _texto_preco_alternativo(card):
+    """Encontra o menor elemento interno que contenha um preço em reais."""
+    candidatos = []
+    for elemento in card.query_selector_all("*"):
+        try:
+            texto = _texto(elemento)
+            if texto and re.search(r"R\$\s*[\d\.]", texto, re.IGNORECASE):
+                candidatos.append(texto)
+        except Exception:
+            continue
+    return min(candidatos, key=len) if candidatos else None
+
+
+def _titulo_alternativo(card, link_el):
+    """Tenta headings, título do link e alt da imagem antes de usar texto genérico."""
+    for seletor in ("h1", "h2", "h3", "h4", "h5", "h6", "[class*='title']", "[class*='titulo']"):
+        texto = _texto(_selecionar(card, seletor))
+        if texto and not re.search(r"R\$\s*[\d\.]", texto, re.IGNORECASE):
+            return texto
+    if link_el:
+        texto = _texto(link_el) or link_el.get_attribute("title")
+        if texto and not re.search(r"R\$\s*[\d\.]", texto, re.IGNORECASE):
+            return texto
+    imagem = _selecionar(card, "img")
+    return imagem.get_attribute("alt") if imagem else None
+
+
 def _extrair_cards(page, cfg_site: dict):
     """Extrai todos os cards visíveis na página atual e retorna uma lista
     de dicts brutos (ainda sem geocodificação)."""
@@ -95,12 +135,14 @@ def _extrair_cards(page, cfg_site: dict):
             if not url_imovel:
                 continue
 
-            titulo = _texto(card.query_selector(seletores.get("titulo", "")))
-            preco_txt = _texto(card.query_selector(seletores.get("preco", "")))
-            bairro_txt = _texto(card.query_selector(seletores.get("bairro", ""))) if seletores.get("bairro") else None
-            tipo_txt = _texto(card.query_selector(seletores.get("tipo", ""))) if seletores.get("tipo") else None
+            titulo = _texto(_selecionar(card, seletores.get("titulo")))
+            preco_txt = _texto(_selecionar(card, seletores.get("preco")))
+            bairro_txt = _texto(_selecionar(card, seletores.get("bairro")))
+            tipo_txt = _texto(_selecionar(card, seletores.get("tipo")))
+            titulo = titulo or _titulo_alternativo(card, link_el) or "Imóvel para alugar"
+            preco_txt = preco_txt or _texto_preco_alternativo(card)
 
-            thumb_el = card.query_selector(seletores.get("thumbnail", ""))
+            thumb_el = _selecionar(card, seletores.get("thumbnail"))
             thumb_attr = seletores.get("thumbnail_attr", "src")
             thumb_url = thumb_el.get_attribute(thumb_attr) if thumb_el else None
             if thumb_url:
