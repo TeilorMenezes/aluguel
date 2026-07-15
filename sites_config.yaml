@@ -180,6 +180,19 @@ sites:
     # Extrai bairro e cidade do campo de endereço: "Bairro - Cidade"
     endereco_regex: '^(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$'
 
+  diferencial:
+    nome: "Diferencial Imóveis"
+    logo: "https://cdn.imoview.com.br/diferencial/Site/imagens/55j45wmo.png"
+    base_url: "https://www.diferencialimoveis.com"
+    listagem_url: "https://www.diferencialimoveis.com/aluguel"
+    cidade_padrao: "Ipatinga"
+    integracao: "imoview_api"
+    api_url: "https://www.diferencialimoveis.com/retornar-imoveis-disponiveis"
+    paginacao:
+      tipo: "api"
+      max_paginas: 20
+    seletores: {}
+
 # =============================================================================
 # CONFIGURAÇÃO DE AGENDAMENTO
 # =============================================================================

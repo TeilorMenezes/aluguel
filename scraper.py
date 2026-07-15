@@ -15,6 +15,7 @@ from pathlib import Path
 from urllib.parse import urljoin
 
 import yaml
+import requests
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 import db
@@ -158,6 +159,54 @@ def _extrair_com_autocorrecao(page, cfg_site):
     except Exception:
         pass
     return itens_originais
+
+
+def _raspar_imoview(cfg_site: dict):
+    """Coleta sites Imoview pela API pública de listagem, sem depender de HTML."""
+    api_url = cfg_site["api_url"]
+    max_paginas = cfg_site.get("paginacao", {}).get("max_paginas", 20)
+    itens, urls_vistas = [], set()
+    base_url = cfg_site["base_url"]
+
+    for pagina in range(1, max_paginas + 1):
+        payload = {
+            "finalidade": "alugar", "codigocidade": "0", "codigoregiao": "0",
+            "numeropagina": str(pagina), "numeroregistros": "20", "opcaoimovel": "0",
+            "destaque": "0", "ordenacao": "",
+        }
+        resposta = requests.post(api_url, data=payload, headers={"User-Agent": "Mozilla/5.0 (compatible; ImoveisScraperApp/1.0)"}, timeout=45)
+        resposta.raise_for_status()
+        dados = resposta.json()
+        lista = dados.get("lista", [])
+        if not lista:
+            break
+
+        novos = 0
+        for bruto in lista:
+            codigo = bruto.get("codigo")
+            slug = bruto.get("url_amigavel") or bruto.get("urlAmigavel") or ""
+            url = f"{base_url}/imovel/{slug}/{codigo}" if codigo else None
+            if not url or url in urls_vistas:
+                continue
+            urls_vistas.add(url)
+            fotos = bruto.get("fotos") or []
+            thumb = bruto.get("urlfotoprincipalp")
+            if not thumb and fotos:
+                thumb = fotos[0].get("urlp") or fotos[0].get("url")
+            valor = next((bruto.get(campo) for campo in ("valor", "valoraluguel", "valor_aluguel", "valorlocacao") if bruto.get(campo) is not None), None)
+            itens.append({
+                "url": url,
+                "titulo": bruto.get("titulo") or f"{bruto.get('tipo') or 'Imóvel'} para alugar",
+                "tipo": normalizar_tipo(bruto.get("tipo")),
+                "preco": _parse_preco(str(valor)) if valor is not None else None,
+                "bairro": bruto.get("bairro"),
+                "cidade": bruto.get("cidade") or cfg_site.get("cidade_padrao"),
+                "thumbnail_url": thumb,
+            })
+            novos += 1
+        if not novos or len(lista) < 20:
+            break
+    return itens
 
 
 def _extrair_cards(page, cfg_site: dict):
@@ -304,6 +353,9 @@ def _executar_acao_inicial(page, cfg_site: dict):
 
 
 def _raspar_site(playwright, cfg_site: dict, headless=True):
+    if cfg_site.get("integracao") == "imoview_api":
+        return _raspar_imoview(cfg_site)
+
     pag_cfg = cfg_site.get("paginacao", {})
     tipo_paginacao = pag_cfg.get("tipo", "nenhuma")
 
