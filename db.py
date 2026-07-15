@@ -66,14 +66,21 @@ def init_db():
 
 def _normalizar_registros_existentes(conn):
     """Migração idempotente dos valores antigos que alimentam os filtros."""
-    linhas = conn.execute("SELECT id, bairro, cidade, imobiliaria FROM imoveis").fetchall()
+    linhas = conn.execute("SELECT id, bairro, cidade, imobiliaria, thumbnail_url, logo_url FROM imoveis").fetchall()
     for linha in linhas:
         bairro, cidade = normalizar_localizacao(linha["bairro"], linha["cidade"])
         imobiliaria = normalizar_imobiliaria(linha["imobiliaria"])
+        thumbnail = _sem_cdn_imoview(linha["thumbnail_url"])
+        logo = _sem_cdn_imoview(linha["logo_url"])
         conn.execute(
-            "UPDATE imoveis SET bairro = ?, cidade = ?, imobiliaria = ? WHERE id = ?",
-            (bairro, cidade, imobiliaria or linha["imobiliaria"], linha["id"]),
+            "UPDATE imoveis SET bairro = ?, cidade = ?, imobiliaria = ?, thumbnail_url = ?, logo_url = ? WHERE id = ?",
+            (bairro, cidade, imobiliaria or linha["imobiliaria"], thumbnail, logo, linha["id"]),
         )
+
+
+def _sem_cdn_imoview(url):
+    """Não persiste arquivos da CDN que bloqueia imagens incorporadas."""
+    return None if url and "cdn.imoview.com.br" in url.lower() else url
 
 
 def remover_duplicata_diferencial():
@@ -106,6 +113,8 @@ def upsert_imovel(item: dict):
     item = dict(item)
     item["bairro"], item["cidade"] = normalizar_localizacao(item.get("bairro"), item.get("cidade"))
     item["imobiliaria"] = normalizar_imobiliaria(item.get("imobiliaria")) or item["imobiliaria"]
+    item["thumbnail_url"] = _sem_cdn_imoview(item.get("thumbnail_url"))
+    item["logo_url"] = _sem_cdn_imoview(item.get("logo_url"))
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO imoveis
