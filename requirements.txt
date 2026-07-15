@@ -5,3 +5,4 @@ playwright>=1.44
 PyYAML>=6.0
 geopy>=2.4
 APScheduler>=3.10
+beautifulsoup4>=4.12

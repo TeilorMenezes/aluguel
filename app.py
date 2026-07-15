@@ -1,12 +1,15 @@
 import subprocess
 import sys
+from pathlib import Path
 
 import streamlit as st
 import folium
+import yaml
 from folium.plugins import MarkerCluster
 from streamlit_folium import st_folium
 
 import db
+from detector import detectar_seletores
 from scheduler_runner import iniciar_agendador, rodar_agora_async
 
 st.set_page_config(page_title="Imóveis para Alugar", layout="wide", page_icon="🏠")
@@ -115,6 +118,29 @@ st.markdown("""
 # Sidebar: status + botão de atualização manual + filtros
 # -----------------------------------------------------------------------
 st.sidebar.header("🏠 Imóveis para Alugar")
+
+with st.sidebar.expander("🛠️ Administrar seletores"):
+    st.caption("Envie o HTML renderizado gerado por `inspect_selectors.py`. Revise a sugestão antes de alterar o YAML.")
+    html_enviado = st.file_uploader("HTML da listagem", type=["html", "htm"], key="html_detector")
+    if html_enviado:
+        resultado_detector = detectar_seletores(html_enviado.getvalue().decode("utf-8", errors="replace"))
+        if resultado_detector.get("erro"):
+            st.error(resultado_detector["erro"])
+        else:
+            st.success(f"{resultado_detector['cards_encontrados']} cards; confiança {resultado_detector['confianca']:.0%}")
+            st.code(yaml.safe_dump(resultado_detector["seletores"], allow_unicode=True, sort_keys=False), language="yaml")
+            st.warning(resultado_detector["aviso"])
+            config_path = Path(__file__).parent / "sites_config.yaml"
+            config_atual = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+            site_destino = st.selectbox(
+                "Aplicar sugestão ao site", list(config_atual["sites"]), key="site_detector"
+            )
+            if st.button("Salvar seletores sugeridos", key="salvar_detector", use_container_width=True):
+                config_atual["sites"][site_destino]["seletores"].update(resultado_detector["seletores"])
+                config_path.write_text(
+                    yaml.safe_dump(config_atual, allow_unicode=True, sort_keys=False), encoding="utf-8"
+                )
+                st.success(f"Seletores salvos para {site_destino} em sites_config.yaml.")
 
 ultima = db.ultima_execucao()
 if ultima:
