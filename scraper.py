@@ -161,6 +161,43 @@ def _extrair_com_autocorrecao(page, cfg_site):
     return itens_originais
 
 
+def _enriquecer_itens_incompletos(page, itens, limite=15):
+    """Recupera dados na página individual somente quando o card é incompleto."""
+    pendentes = [
+        item for item in itens
+        if item.get("preco") is None or not item.get("titulo") or item["titulo"] == "Imóvel para alugar" or not item.get("tipo")
+    ][:limite]
+    for item in pendentes:
+        detalhe = None
+        try:
+            detalhe = page.context.new_page()
+            detalhe.goto(item["url"], timeout=45000, wait_until="domcontentloaded")
+            detalhe.wait_for_timeout(1200)
+
+            titulo = _texto(_selecionar(detalhe, "h1"))
+            if not titulo:
+                meta = detalhe.query_selector("meta[property='og:title']")
+                titulo = meta.get_attribute("content") if meta else None
+            if titulo and (not item.get("titulo") or item["titulo"] == "Imóvel para alugar"):
+                item["titulo"] = titulo
+
+            if item.get("preco") is None:
+                preco_txt = _texto_preco_alternativo(detalhe)
+                if not preco_txt:
+                    preco_txt = _texto(detalhe.query_selector("body"))
+                item["preco"] = _parse_preco(preco_txt)
+
+            if not item.get("tipo") and item.get("titulo"):
+                primeiro_termo = re.split(r"[|,–-]", item["titulo"], maxsplit=1)[0]
+                item["tipo"] = normalizar_tipo(primeiro_termo)
+        except Exception:
+            continue
+        finally:
+            if detalhe:
+                detalhe.close()
+    return itens
+
+
 def _raspar_imoview(cfg_site: dict):
     """Coleta sites Imoview pela API pública de listagem, sem depender de HTML."""
     api_url = cfg_site["api_url"]
@@ -284,7 +321,7 @@ def _raspar_com_botao(page, cfg_site: dict, pag_cfg: dict):
             break
         page.wait_for_timeout(espera_ms)
 
-    return _extrair_com_autocorrecao(page, cfg_site)
+    return _enriquecer_itens_incompletos(page, _extrair_com_autocorrecao(page, cfg_site))
 
 
 def _raspar_com_paginacao_url(playwright, cfg_site: dict, pag_cfg: dict, headless: bool):
@@ -317,10 +354,9 @@ def _raspar_com_paginacao_url(playwright, cfg_site: dict, pag_cfg: dict, headles
                 urls_vistas.add(item["url"])
             todos_itens.extend(novos)
             pagina += 1
+        return _enriquecer_itens_incompletos(page, todos_itens)
     finally:
         browser.close()
-
-    return todos_itens
 
 
 def _executar_acao_inicial(page, cfg_site: dict):
@@ -379,7 +415,7 @@ def _raspar_site(playwright, cfg_site: dict, headless=True):
         if tipo_paginacao == "botao":
             itens = _raspar_com_botao(page, cfg_site, pag_cfg)
         else:
-            itens = _extrair_com_autocorrecao(page, cfg_site)
+            itens = _enriquecer_itens_incompletos(page, _extrair_com_autocorrecao(page, cfg_site))
     finally:
         browser.close()
 
