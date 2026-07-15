@@ -13,7 +13,7 @@ from folium.plugins import MarkerCluster
 from streamlit_folium import st_folium
 
 import db
-from detector import detectar_seletores, inspecionar_url
+from detector import detectar_seletores, inspecionar_url, salvar_padrao
 from descobrir_sites import descobrir_urls_vale_aco
 from scheduler_runner import iniciar_agendador, rodar_agora_async, rodar_site_agora_async
 
@@ -246,6 +246,7 @@ def renderizar_administracao():
         return
 
     st.success(f"{resultado_detector['cards_encontrados']} cards; confiança {resultado_detector['confianca']:.0%}")
+    st.caption(f"Plataforma identificada: `{resultado_detector['plataforma']}`" + (" — padrão aprendido aplicado." if resultado_detector["padrao_aprendido"] else ""))
     st.code(yaml.safe_dump(resultado_detector["seletores"], allow_unicode=True, sort_keys=False), language="yaml")
     st.warning(resultado_detector["aviso"])
     config_path = Path(__file__).parent / "sites_config.yaml"
@@ -257,6 +258,23 @@ def renderizar_administracao():
             yaml.safe_dump(config_atual, allow_unicode=True, sort_keys=False), encoding="utf-8"
         )
         st.success(f"Seletores salvos para {site_destino} em sites_config.yaml.")
+
+    with st.expander("🧠 Ensinar seletores corretos"):
+        st.caption("Corrija os campos que falharam. O padrão será reutilizado automaticamente em sites da mesma plataforma.")
+        campos_aprendizagem = {}
+        for campo in ("card", "link", "titulo", "preco", "bairro", "thumbnail"):
+            campos_aprendizagem[campo] = st.text_input(
+                campo, value=resultado_detector["seletores"].get(campo, ""), key=f"aprender_{campo}"
+            )
+        campos_aprendizagem["thumbnail_attr"] = resultado_detector["seletores"].get("thumbnail_attr", "src")
+        if st.button("Salvar correção e ensinar algoritmo", key="ensinar_detector", use_container_width=True):
+            if not all(campos_aprendizagem[campo] for campo in ("card", "link", "preco")):
+                st.error("Card, link e preço são obrigatórios para ensinar o padrão.")
+            else:
+                config_atual["sites"][site_destino]["seletores"].update(campos_aprendizagem)
+                config_path.write_text(yaml.safe_dump(config_atual, allow_unicode=True, sort_keys=False), encoding="utf-8")
+                salvar_padrao(resultado_detector["plataforma"], campos_aprendizagem)
+                st.success("Correção salva. As próximas detecções dessa plataforma usarão esse aprendizado.")
 
 # -----------------------------------------------------------------------
 # Sidebar: autenticação e filtros

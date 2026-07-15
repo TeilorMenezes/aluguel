@@ -1,13 +1,68 @@
 """Detecção heurística de seletores CSS em HTML renderizado de listagens."""
 import re
 from collections import Counter, defaultdict
+from pathlib import Path
 from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 from playwright.sync_api import TimeoutError as PWTimeout, sync_playwright
+import yaml
 
 
 PRECO_RE = re.compile(r"(?:R\$\s*)?\d{1,3}(?:\.\d{3})*(?:,\d{2})|consultar", re.I)
+PADROES_PATH = Path(__file__).parent / "detector_patterns.yaml"
+
+
+def identificar_plataforma(html: str) -> str:
+    """Reconhece plataformas já vistas, sem depender do domínio do site."""
+    conteudo = html.lower()
+    if "imoview.com.br" in conteudo or "retornar-imoveis-disponiveis" in conteudo:
+        return "imoview"
+    if "universalsoftware" in conteudo:
+        return "universal_software"
+    if "wp-content" in conteudo or "wordpress" in conteudo:
+        return "wordpress"
+    if "imoveloffice" in conteudo:
+        return "imoveloffice"
+    return "generico"
+
+
+def _carregar_padroes() -> dict:
+    if not PADROES_PATH.is_file():
+        return {"plataformas": {}}
+    return yaml.safe_load(PADROES_PATH.read_text(encoding="utf-8")) or {"plataformas": {}}
+
+
+def salvar_padrao(plataforma: str, seletores: dict) -> None:
+    """Registra seletores validados pelo administrador para reuso futuro."""
+    dados = _carregar_padroes()
+    dados.setdefault("plataformas", {})[plataforma] = {
+        "seletores": {chave: valor for chave, valor in seletores.items() if valor},
+    }
+    PADROES_PATH.write_text(yaml.safe_dump(dados, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+
+def _padrao_valido(soup, padrao: dict) -> dict:
+    """Usa um padrão aprendido somente se ele ainda funcionar no HTML atual."""
+    seletores = padrao.get("seletores", {})
+    card_sel = seletores.get("card")
+    if not card_sel:
+        return {}
+    try:
+        cards = soup.select(card_sel)
+        if not cards:
+            return {}
+        validos = {"card": card_sel}
+        for campo, seletor in seletores.items():
+            if campo in {"card", "thumbnail_attr"}:
+                continue
+            if cards[0].select_one(seletor):
+                validos[campo] = seletor
+        if "thumbnail_attr" in seletores and "thumbnail" in validos:
+            validos["thumbnail_attr"] = seletores["thumbnail_attr"]
+        return validos if {"link", "preco"}.issubset(validos) else {}
+    except Exception:
+        return {}
 
 
 def _assinatura(tag):
@@ -35,6 +90,8 @@ def detectar_seletores(html: str) -> dict:
     preço. Isso evita confundir um ``span.preco`` repetido com o card inteiro.
     """
     soup = BeautifulSoup(html, "html.parser")
+    plataforma = identificar_plataforma(html)
+    padrao_aprendido = _padrao_valido(soup, _carregar_padroes().get("plataformas", {}).get(plataforma, {}))
     grupos = defaultdict(list)
     for tag in soup.find_all(True):
         assinatura = _assinatura(tag)
@@ -54,6 +111,15 @@ def detectar_seletores(html: str) -> dict:
 
     score_card, assinatura_card, tags_card = _melhor(cards)
     if not assinatura_card:
+        if padrao_aprendido:
+            return {
+                "seletores": padrao_aprendido,
+                "confianca": 0.9,
+                "cards_encontrados": len(soup.select(padrao_aprendido["card"])),
+                "plataforma": plataforma,
+                "padrao_aprendido": True,
+                "aviso": "Seletores recuperados do padrão previamente validado.",
+            }
         return {"erro": "Não foi possível identificar cards repetidos no HTML."}
 
     quantidade = len(tags_card)
@@ -87,12 +153,17 @@ def detectar_seletores(html: str) -> dict:
     if thumbnail:
         seletores["thumbnail_attr"] = "src"
 
+    if padrao_aprendido:
+        seletores.update(padrao_aprendido)
+
     encontrados = sum(campo in seletores for campo in ("link", "titulo", "preco", "thumbnail"))
-    confianca = round(min(1.0, score_card * 0.55 + (encontrados / 4) * 0.45), 2)
+    confianca = 0.9 if padrao_aprendido else round(min(1.0, score_card * 0.55 + (encontrados / 4) * 0.45), 2)
     return {
         "seletores": seletores,
         "confianca": confianca,
         "cards_encontrados": quantidade,
+        "plataforma": plataforma,
+        "padrao_aprendido": bool(padrao_aprendido),
         "aviso": "Revise os seletores antes de salvar; bairro e título podem exigir ajuste manual.",
     }
 
