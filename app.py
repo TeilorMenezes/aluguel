@@ -14,6 +14,7 @@ from streamlit_folium import st_folium
 
 import db
 from detector import detectar_seletores, inspecionar_url
+from descobrir_sites import descobrir_urls_vale_aco
 from scheduler_runner import iniciar_agendador, rodar_agora_async, rodar_site_agora_async
 
 st.set_page_config(page_title="Imóveis para Alugar", layout="wide", page_icon="🏠")
@@ -172,6 +173,55 @@ def renderizar_administracao():
                 st.success(f"Imobiliária adicionada como '{chave}'. Fazendo a primeira coleta...")
                 rodar_site_agora_async(chave).join()
                 st.success("Primeira coleta concluída. Atualize a página para ver os imóveis.")
+
+    st.divider()
+    st.subheader("Encontrar imobiliárias no Vale do Aço")
+    st.caption("Busca sites públicos de aluguel em Ipatinga, Timóteo, Coronel Fabriciano e Santana do Paraíso. No máximo cinco domínios são inspecionados por execução.")
+    if st.button("Buscar, inspecionar e cadastrar sites", key="descobrir_vale_aco", use_container_width=True):
+        with st.spinner("Procurando e validando imobiliárias da região..."):
+            candidatos = descobrir_urls_vale_aco()
+            config_path = Path(__file__).parent / "sites_config.yaml"
+            config_atual = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+            dominios_existentes = {urlparse(site["base_url"]).netloc.removeprefix("www.") for site in config_atual["sites"].values()}
+            adicionadas, ignoradas = [], []
+            for candidato in candidatos:
+                host = urlparse(candidato["url"]).netloc.removeprefix("www.")
+                if host in dominios_existentes:
+                    ignoradas.append(host)
+                    continue
+                deteccao = inspecionar_url(candidato["url"])
+                if deteccao.get("erro") or deteccao.get("confianca", 0) < 0.65:
+                    ignoradas.append(host)
+                    continue
+                chave = unicodedata.normalize("NFKD", host.split(".")[0]).encode("ascii", "ignore").decode().lower()
+                chave = re.sub(r"[^a-z0-9]+", "_", chave).strip("_") or "nova_imobiliaria"
+                chave_base, numero = chave, 2
+                while chave in config_atual["sites"]:
+                    chave = f"{chave_base}_{numero}"
+                    numero += 1
+                url_final = deteccao["url"]
+                config_atual["sites"][chave] = {
+                    "nome": host,
+                    "logo": "",
+                    "base_url": f"{urlparse(url_final).scheme}://{urlparse(url_final).netloc}",
+                    "listagem_url": url_final,
+                    "cidade_padrao": candidato["municipio"],
+                    "espera_seletor": deteccao["seletores"]["card"],
+                    "paginacao": {"tipo": "nenhuma"},
+                    "seletores": deteccao["seletores"],
+                }
+                dominios_existentes.add(host)
+                adicionadas.append(chave)
+            if adicionadas:
+                config_path.write_text(yaml.safe_dump(config_atual, allow_unicode=True, sort_keys=False), encoding="utf-8")
+                for chave in adicionadas:
+                    rodar_site_agora_async(chave).join()
+        if adicionadas:
+            st.success(f"Imobiliárias adicionadas e coletadas: {', '.join(adicionadas)}.")
+        else:
+            st.info("Nenhum site novo passou pela validação automática nesta execução.")
+        if ignoradas:
+            st.caption("Ignorados (já cadastrados ou sem confiança suficiente): " + ", ".join(ignoradas))
 
     st.divider()
     st.subheader("Detectar seletores")

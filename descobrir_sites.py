@@ -38,6 +38,10 @@ def url_resultado(href):
 
 def buscar(nome, municipio):
     consulta = f'"{nome}" imobiliária {municipio} MG'
+    return buscar_consulta(consulta)
+
+
+def buscar_consulta(consulta):
     resposta = requests.get("https://html.duckduckgo.com/html/", params={"q": consulta}, headers=HEADERS, timeout=25)
     resposta.raise_for_status()
     soup = BeautifulSoup(resposta.text, "html.parser")
@@ -47,6 +51,26 @@ def buscar(nome, municipio):
         if url.startswith("http"):
             resultados.append((url, link.get_text(" ", strip=True)))
     return resultados
+
+
+def descobrir_urls_vale_aco(limite=5):
+    """Pesquisa portais de aluguel públicos na região, sem exigir CSV de CNPJ.
+
+    Retorna poucos candidatos para evitar consultas e inspeções excessivas.
+    """
+    candidatos = {}
+    for municipio in sorted(MUNICIPIOS_VALE_DO_ACO):
+        try:
+            resultados = buscar_consulta(f"imobiliária imóveis para alugar {municipio.title()} MG")
+        except requests.RequestException:
+            continue
+        for url, titulo in resultados:
+            score = pontuar(url, titulo, "")
+            host = dominio(url)
+            if score >= 3 and host not in candidatos:
+                candidatos[host] = {"url": url, "municipio": municipio.title(), "score": score, "titulo": titulo}
+        time.sleep(1.0)
+    return sorted(candidatos.values(), key=lambda item: (-item["score"], item["url"]))[:limite]
 
 
 def pontuar(url, titulo, nome):
