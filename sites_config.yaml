@@ -243,6 +243,82 @@ sites:
       thumbnail_attr: "src"
     titulo_regex: "^(?P<tipo>.+?)\\s+(?:para\\s+alugar|a\\s+venda).*?\\s+(?:no|na|em)\\s+(?P<bairro>.+?)\\s+em\\s+(?P<cidade>.+)$"
 
+  ferreira:
+    nome: "Ferreira Imóveis"
+    logo: ""
+    base_url: "https://ferreiraimoveis.net"
+    listagem_url: "https://ferreiraimoveis.net/imoveis/para-alugar"
+    cidade_padrao: "Ipatinga"
+    espera_seletor: "div.thumbnail_one.mb_30"
+    paginacao:
+      tipo: "nenhuma"
+    seletores:
+      card: "div.thumbnail_one.mb_30"
+      link: "a.property-card-link"
+      titulo: "h2.hover_primary.mb-0.property_card_heading"
+      preco: "div.mb_30.thumbnail_one"
+      bairro: "span.d-block.property_card_address.text-truncate"
+      thumbnail: "img"
+      thumbnail_attr: "src"
+    titulo_regex: '^(?P<tipo>.+?)\s+para\s+alugar'
+    endereco_regex: '^(?P<bairro>.+?),\s*(?P<cidade>.+?)(?:\s*-\s*MG)?$'
+
+  catedral:
+    nome: "Catedral Imobiliária"
+    logo: ""
+    base_url: "https://www.catedralimobiliaria.com.br"
+    listagem_url: "https://www.catedralimobiliaria.com.br/imoveis/para-alugar"
+    cidade_padrao: "Coronel Fabriciano"
+    espera_seletor: "div.thumbnail_one.mb_30"
+    paginacao:
+      tipo: "nenhuma"
+    seletores:
+      card: "div.thumbnail_one.mb_30"
+      link: "a.property-card-link"
+      titulo: "h2.hover_primary.mb-0.property_card_heading"
+      preco: "div.mb_30.thumbnail_one"
+      bairro: "span.d-block.property_card_address.text-truncate"
+      thumbnail: "img"
+      thumbnail_attr: "src"
+    titulo_regex: '^(?P<tipo>.+?)\s+para\s+alugar'
+    endereco_regex: '^(?P<bairro>.+?),\s*(?P<cidade>.+?)(?:\s*-\s*MG)?$'
+
+  me_imobiliaria:
+    nome: "M.E. Imobiliária"
+    logo: ""
+    base_url: "https://www.meimobiliaria.com.br"
+    listagem_url: "https://www.meimobiliaria.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina=1"
+    cidade_padrao: "Ipatinga"
+    espera_seletor: ".property"
+    paginacao:
+      tipo: "nenhuma"
+    seletores:
+      card: ".property"
+      link: "a"
+      titulo: "h1.title"
+      preco: ".property-price"
+      thumbnail: ".property-img img"
+      thumbnail_attr: "src"
+    titulo_regex: '^(?P<tipo>.+?)\s*\|\s*.*?-\s*(?P<bairro>[^-|]+)\s*-\s*(?P<cidade>[^|]+)'
+
+  minas_caixa:
+    nome: "Minas Caixa Imóveis"
+    logo: ""
+    base_url: "https://www.minascaixaimoveis.com.br"
+    listagem_url: "https://www.minascaixaimoveis.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina=1"
+    cidade_padrao: "Timóteo"
+    espera_seletor: ".property"
+    paginacao:
+      tipo: "nenhuma"
+    seletores:
+      card: ".property"
+      link: "a"
+      titulo: "h1.title"
+      preco: ".property-price"
+      thumbnail: ".property-img img"
+      thumbnail_attr: "src"
+    titulo_regex: '^(?P<tipo>.+?)\s*\|\s*(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$'
+
 # =============================================================================
 # CONFIGURAÇÃO DE AGENDAMENTO
 # =============================================================================

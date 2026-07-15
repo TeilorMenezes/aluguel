@@ -90,10 +90,19 @@ def _parse_preco(texto: str):
     """Converte 'R$ 1.200,00  Código. 6089' -> 1200.0 (pega só o 1º número)."""
     if not texto:
         return None
+    if re.search(r"\bsob\s+consulta\b|\bconsultar\b", texto, re.IGNORECASE):
+        return None
     # Prioriza o valor após R$ para não confundir código do imóvel, área ou quartos com preço.
     m = re.search(r"R\$\s*([\d\.]+(?:,\d{2})?)", texto, re.IGNORECASE)
     if not m:
-        m = re.search(r"[\d\.]+,\d{2}|\d+", texto)
+        # Sem símbolo monetário, um valor com centavos é mais confiável que
+        # o primeiro inteiro do card (quartos, vagas ou área).
+        m = re.search(r"[\d\.]+,\d{2}", texto)
+    if not m:
+        # Alguns portais exibem milhares como "2.000" sem R$ nem centavos.
+        m = re.search(r"\d{1,3}(?:\.\d{3})+", texto)
+    if not m:
+        m = re.search(r"\d+", texto)
     if not m:
         return None
     numeros = (m.group(1) if m.lastindex else m.group(0)).replace(".", "").replace(",", ".")
