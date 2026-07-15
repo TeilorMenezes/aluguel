@@ -434,7 +434,15 @@ else:
         for i, imovel in enumerate(imoveis):
             col = colunas[i % colunas_por_linha]
             with col:
-                thumb = html.escape(imovel["thumbnail_url"] or "", quote=True)
+                thumb_original = imovel["thumbnail_url"] or ""
+                # A CDN Imoview abre a foto isolada, mas bloqueia a exibição
+                # incorporada no Streamlit em alguns navegadores. Não
+                # renderizamos um <img> quebrado: a foto continua disponível
+                # ao abrir o anúncio original pelo botão abaixo.
+                imagem_bloqueada = "cdn.imoview.com.br" in thumb_original.lower()
+                thumb = html.escape(thumb_original, quote=True)
+                thumb_html = "" if imagem_bloqueada or not thumb else f'<img class="thumb" src="{thumb}" />'
+                thumb_estado = " thumb-missing" if imagem_bloqueada or not thumb else ""
                 logo = html.escape(imovel["logo_url"] or "", quote=True)
                 logo_badge_html = f'<img class="logo-badge" src="{logo}" />' if logo else ""
                 preco = f"R$ {imovel['preco']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if imovel["preco"] else "Consultar"
@@ -445,9 +453,8 @@ else:
 
                 st.markdown(f"""
                 <div class="card-imovel">
-                    <div class="thumb-wrap">
-                        <img class="thumb" src="{thumb}" referrerpolicy="no-referrer"
-                             onerror="this.remove(); this.parentElement.classList.add('thumb-missing');" />
+                    <div class="thumb-wrap{thumb_estado}">
+                        {thumb_html}
                         {logo_badge_html}
                         {tipo_badge_html}
                     </div>
