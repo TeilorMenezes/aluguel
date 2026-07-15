@@ -130,6 +130,13 @@ st.markdown("""
     padding: 3px 9px;
     border-radius: 20px;
 }
+.card-tipo {
+    display: inline-block;
+    color: #555555;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -442,25 +449,23 @@ else:
                 # incorporada no Streamlit em alguns navegadores. Não
                 # renderizamos um <img> quebrado: a foto continua disponível
                 # ao abrir o anúncio original pelo botão abaixo.
-                imagem_bloqueada = "cdn.imoview.com.br" in thumb_original.lower()
-                thumb = html.escape(thumb_original, quote=True)
+                if thumb_original:
+                    st.image(thumb_original, use_container_width=True)
+                else:
+                    st.caption("Imagem não disponível")
                 # A imagem como fundo não produz o ícone quebrado do navegador
                 # nem interfere com o HTML interno quando a CDN a bloqueia.
-                thumb_style = "" if imagem_bloqueada or not thumb else f" style=\"background-image: url('{thumb}')\""
-                thumb_estado = " thumb-missing" if imagem_bloqueada or not thumb else ""
                 preco = f"R$ {imovel['preco']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if imovel["preco"] else "Consultar"
                 bairro = imovel["bairro"] or "Bairro não informado"
                 cidade = html.escape(imovel["cidade"] or "")
                 titulo = html.escape(imovel["titulo"] or imovel["imobiliaria"])
                 imobiliaria = html.escape(imovel["imobiliaria"])
-                tipo_badge_html = f'<div class="tipo-badge">{html.escape(imovel["tipo"])}</div>' if imovel.get("tipo") else ""
+                tipo_badge_html = f'<div class="card-tipo">{html.escape(imovel["tipo"])}</div>' if imovel.get("tipo") else ""
 
                 st.markdown(f"""
                 <div class="card-imovel">
-                    <div class="thumb-wrap{thumb_estado}"{thumb_style}>
-                        {tipo_badge_html}
-                    </div>
                     <div class="card-body">
+                        {tipo_badge_html}
                         <div class="card-titulo">{titulo}</div>
                         <div class="card-preco">{preco}/mês</div>
                         <div class="card-bairro">{bairro}{', ' + cidade if cidade else ''}</div>
