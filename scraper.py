@@ -125,7 +125,7 @@ def _aplicar_endereco_regex(texto: str, padrao: str):
     resultado = {"bairro": None, "cidade": None}
     if not texto or not padrao:
         return resultado
-    m = re.match(padrao, texto.strip(), re.IGNORECASE)
+    m = re.search(padrao, texto.strip(), re.IGNORECASE)
     if m:
         grupos = m.groupdict()
         for chave in resultado:
@@ -363,11 +363,12 @@ def _extrair_cards(page, cfg_site: dict):
                 thumb_url = _normalizar_url_imagem(urljoin(cfg_site["base_url"], thumb_url.strip()))
 
             extraido = _aplicar_titulo_regex(titulo, cfg_site.get("titulo_regex"))
+            localizacao_titulo = _aplicar_endereco_regex(titulo, cfg_site.get("bairro_regex"))
             endereco_extraido = _aplicar_endereco_regex(bairro_txt, cfg_site.get("endereco_regex"))
 
             if cfg_site.get("preferir_localizacao_titulo"):
-                bairro = extraido["bairro"] or endereco_extraido["bairro"] or bairro_txt
-                cidade = extraido["cidade"] or endereco_extraido["cidade"] or cfg_site.get("cidade_padrao")
+                bairro = extraido["bairro"] or localizacao_titulo["bairro"] or endereco_extraido["bairro"] or bairro_txt
+                cidade = extraido["cidade"] or localizacao_titulo["cidade"] or endereco_extraido["cidade"] or cfg_site.get("cidade_padrao")
             else:
                 bairro = endereco_extraido["bairro"] or bairro_txt or extraido["bairro"]
                 cidade = endereco_extraido["cidade"] or extraido["cidade"] or cfg_site.get("cidade_padrao")

@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-from normalizacao import normalizar_imobiliaria, normalizar_localizacao
+from normalizacao import eh_bairro_valido, normalizar_imobiliaria, normalizar_localizacao
 
 DB_PATH = Path(__file__).parent / "data" / "imoveis.db"
 DB_PATH.parent.mkdir(exist_ok=True)
@@ -239,7 +239,9 @@ def listar_bairros(cidades=None):
     query += " ORDER BY bairro"
     with get_conn() as conn:
         rows = conn.execute(query, params).fetchall()
-        return [r["bairro"] for r in rows]
+        # Registros históricos podem ter sido coletados com o título do
+        # anúncio no campo bairro. Não ofereça esses textos como filtro.
+        return [r["bairro"] for r in rows if eh_bairro_valido(r["bairro"])]
 
 
 def faixa_preco():

@@ -199,6 +199,7 @@ sites:
     base_url: "https://portalimoveisimobiliaria.com.br"
     listagem_url: "https://portalimoveisimobiliaria.com.br/imoveis-locacao"
     cidade_padrao: "Ipatinga"
+    preferir_localizacao_titulo: true
     espera_seletor: ".featured-thumb.item"
     paginacao:
       tipo: "nenhuma"
@@ -212,7 +213,10 @@ sites:
       tipo: "h5"
       thumbnail: ".carousel-item img"
       thumbnail_attr: "data-src"
-    endereco_regex: '^(?:.+?)\s+para\s+aluguel.*?,\s*(?P<bairro>.+?)\s*-\s*(?P<cidade>[^/]+)'
+    # Captura o último trecho antes de "- Cidade", não os quartos/vagas.
+    titulo_regex: '^.*\s+para\s+aluguel.*,(?P<bairro>[^,]+?)\s*-\s*(?P<cidade>[^/]+)'
+    # Alguns anúncios não exibem a cidade no título: "... no Iguaçu".
+    bairro_regex: '\b(?:no|na)\s+(?P<bairro>[^,\-]+)$'
 
   moradia:
     nome: "Moradia Imobiliária"

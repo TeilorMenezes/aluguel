@@ -23,6 +23,15 @@ _CIDADES = {
 _LIXO_BAIRRO = {"aluguel", "alugar", "locacao", "locação", "imovel", "imóvel", "residencial",
                  "comercial", "mg", "minas gerais", "brasil", "nao informado", "não informado", "consulte"}
 _MARCADORES_ENDERECO = re.compile(r"\b(rua|avenida|av\.?|rodovia|estrada|travessa|praca|praça|numero|nº|cep)\b", re.I)
+_MARCADORES_DESCRICAO = re.compile(
+    r"\b(para\s+alugu[ea]r|quartos?|su[ií]te|vagas?|m[²2]|comercial)\b", re.I
+)
+
+
+def eh_bairro_valido(valor):
+    """Impede que títulos e características de imóveis virem opções de bairro."""
+    texto = limpar_texto(valor)
+    return bool(texto and len(texto) <= 55 and not _MARCADORES_DESCRICAO.search(texto))
 
 
 def normalizar_cidade(valor):
@@ -66,7 +75,7 @@ def normalizar_localizacao(bairro, cidade, cidade_padrao=None):
     if not bairro_limpo:
         return None, cidade_normalizada
     chave = _sem_acento(bairro_limpo).lower()
-    if chave in _LIXO_BAIRRO or _MARCADORES_ENDERECO.search(bairro_limpo):
+    if chave in _LIXO_BAIRRO or _MARCADORES_ENDERECO.search(bairro_limpo) or not eh_bairro_valido(bairro_limpo):
         return None, cidade_normalizada
     if cidade_normalizada and chave == _sem_acento(cidade_normalizada).lower():
         return None, cidade_normalizada
