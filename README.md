@@ -82,7 +82,23 @@ Basta adicionar um novo bloco em `sites_config.yaml` dentro de `sites:`,
 seguindo o mesmo formato, e preencher os seletores usando o mesmo processo
 do passo 2. Não é necessário mexer no código.
 
-## 6. Observações importantes
+## 6. Descobrir imobiliárias do Vale do Aço
+
+Primeiro gere uma única base de CNPJ para os quatro municípios centrais:
+
+```bash
+python baixar_imobiliarias_cnpj.py --municipio IPATINGA --municipio TIMOTEO --municipio "CORONEL FABRICIANO" --municipio "SANTANA DO PARAISO"
+```
+
+Em seguida, informe o CSV gerado ao descobridor:
+
+```bash
+python descobrir_sites.py data/imobiliarias_cnpj.csv
+```
+
+Ele consulta resultados públicos para cada empresa ativa, descarta redes sociais e portais de anúncios e salva os domínios mais prováveis em `data/sites_candidatos_vale_aco.csv`. Revise a lista e cadastre cada URL pela aba **Administração** do app.
+
+## 7. Observações importantes
 
 - **Respeite os Termos de Uso** dos sites das imobiliárias e o arquivo
   `robots.txt` de cada um antes de rodar varreduras automatizadas com

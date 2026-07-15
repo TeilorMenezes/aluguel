@@ -5,4 +5,6 @@ data/*.db
 data/debug_*.html
 data/debug_*.png
 data/deteccao_*.html
+data/imobiliarias_*.csv
+data/sites_candidatos_*.csv
 .streamlit/secrets.toml

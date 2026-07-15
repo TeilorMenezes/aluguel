@@ -92,7 +92,7 @@ DEFAULT_TARGET_CNAES = {
 }
 
 WORKDIR = "cnpj_tmp"
-OUTPUT_DIR = "/mnt/user-data/outputs"
+OUTPUT_DIR = "data"
 OUTPUT_FILE = os.path.join(OUTPUT_DIR, "imobiliarias_cnpj.csv")
 
 SESSION = requests.Session()
@@ -288,7 +288,7 @@ def processar_estabelecimentos(
     pasta_url: str,
     arquivos_disponiveis: List[str],
     cnaes_alvo: Set[str],
-    codigo_municipio_alvo: Optional[str],
+    codigos_municipios_alvo: Optional[Set[str]],
     apenas_ativas: bool,
 ) -> List[List[str]]:
     """Baixa cada parte do ESTABELE, filtra linha a linha e devolve a lista
@@ -315,7 +315,7 @@ def processar_estabelecimentos(
                 continue
             if apenas_ativas and linha[IDX_SITUACAO_CADASTRAL].strip() != SITUACAO_ATIVA:
                 continue
-            if codigo_municipio_alvo and linha[IDX_MUNICIPIO_COD].strip() != codigo_municipio_alvo:
+            if codigos_municipios_alvo and linha[IDX_MUNICIPIO_COD].strip() not in codigos_municipios_alvo:
                 continue
             resultado.append(linha)
             contador += 1
@@ -483,8 +483,8 @@ def main():
         description="Baixa e filtra a base de Dados Abertos de CNPJ da Receita Federal por CNAE de imobiliárias."
     )
     parser.add_argument(
-        "--municipio", type=str, default=None,
-        help='Nome do município para filtrar (ex: "IPATINGA"). Se omitido, traz o Brasil inteiro (arquivo grande).'
+        "--municipio", action="append", default=None,
+        help='Município para filtrar (ex: "IPATINGA"). Repita a opção para incluir mais cidades.'
     )
     parser.add_argument(
         "--cnae", action="append", default=None,
@@ -509,19 +509,20 @@ def main():
     tabela_cnaes = carregar_tabela_apoio(pasta_url, arquivos_disponiveis, "CNAES")
     tabela_municipios = carregar_tabela_apoio(pasta_url, arquivos_disponiveis, "MUNICIPIOS")
 
-    codigo_municipio_alvo = None
+    codigos_municipios_alvo = set()
     if args.municipio:
-        codigo_municipio_alvo = encontrar_codigo_municipio(tabela_municipios, args.municipio)
-        if codigo_municipio_alvo:
-            print(f"[INFO] Município '{args.municipio}' -> código RFB {codigo_municipio_alvo}")
-        else:
-            print(f"[AVISO] Município '{args.municipio}' não encontrado na tabela. "
-                  f"Prosseguindo sem filtro de município.")
+        for municipio in args.municipio:
+            codigo = encontrar_codigo_municipio(tabela_municipios, municipio)
+            if codigo:
+                codigos_municipios_alvo.add(codigo)
+                print(f"[INFO] Município '{municipio}' -> código RFB {codigo}")
+            else:
+                print(f"[AVISO] Município '{municipio}' não encontrado na tabela.")
 
     print(f"[INFO] CNAEs alvo: {sorted(cnaes_alvo)}")
 
     linhas_filtradas = processar_estabelecimentos(
-        pasta_url, arquivos_disponiveis, cnaes_alvo, codigo_municipio_alvo, apenas_ativas
+        pasta_url, arquivos_disponiveis, cnaes_alvo, codigos_municipios_alvo or None, apenas_ativas
     )
 
     if not linhas_filtradas:
