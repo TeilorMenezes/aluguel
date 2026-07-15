@@ -24,6 +24,16 @@ EXCLUIR_DOMINIOS = {
 }
 PALAVRAS_RELEVANTES = ("imóveis", "imoveis", "imobiliária", "imobiliaria", "aluguel", "locação", "locacao")
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; ImoveisScraperApp/1.0)"}
+# Fontes locais conhecidas, usadas somente como ponto de partida quando a
+# busca pública não devolver resultados (motores de busca mudam o HTML com
+# frequência). Elas continuam passando pela mesma inspeção automática.
+SITES_INICIAIS_VALE_DO_ACO = [
+    ("https://www.catedralimobiliaria.com.br/", "Coronel Fabriciano"),
+    ("https://www.joaodamascenoimoveis.com.br/", "Coronel Fabriciano"),
+    ("https://www.americanoimobiliaria.com.br/", "Timóteo"),
+    ("https://carlaoimoveismg.com.br/", "Coronel Fabriciano"),
+    ("https://www.imobiliariaportalmg.com.br/", "Timóteo"),
+]
 
 
 def dominio(url):
@@ -46,9 +56,9 @@ def buscar_consulta(consulta):
     resposta.raise_for_status()
     soup = BeautifulSoup(resposta.text, "html.parser")
     resultados = []
-    for link in soup.select("a.result__a"):
+    for link in soup.select("a.result__a, a[href]"):
         url = url_resultado(link.get("href", ""))
-        if url.startswith("http"):
+        if url.startswith("http") and dominio(url) not in {"duckduckgo.com", "html.duckduckgo.com"}:
             resultados.append((url, link.get_text(" ", strip=True)))
     return resultados
 
@@ -70,6 +80,8 @@ def descobrir_urls_vale_aco(limite=5):
             if score >= 3 and host not in candidatos:
                 candidatos[host] = {"url": url, "municipio": municipio.title(), "score": score, "titulo": titulo}
         time.sleep(1.0)
+    for url, municipio in SITES_INICIAIS_VALE_DO_ACO:
+        candidatos.setdefault(dominio(url), {"url": url, "municipio": municipio, "score": 4, "titulo": "Fonte regional inicial"})
     return sorted(candidatos.values(), key=lambda item: (-item["score"], item["url"]))[:limite]
 
 

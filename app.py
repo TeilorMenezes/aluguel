@@ -183,15 +183,22 @@ def renderizar_administracao():
             config_path = Path(__file__).parent / "sites_config.yaml"
             config_atual = yaml.safe_load(config_path.read_text(encoding="utf-8"))
             dominios_existentes = {urlparse(site["base_url"]).netloc.removeprefix("www.") for site in config_atual["sites"].values()}
-            adicionadas, ignoradas = [], []
+            adicionadas, ignoradas, relatorio = [], [], []
             for candidato in candidatos:
                 host = urlparse(candidato["url"]).netloc.removeprefix("www.")
                 if host in dominios_existentes:
                     ignoradas.append(host)
+                    relatorio.append({"site": host, "resultado": "Já cadastrado"})
                     continue
                 deteccao = inspecionar_url(candidato["url"])
-                if deteccao.get("erro") or deteccao.get("confianca", 0) < 0.65:
+                essenciais = {"card", "link", "preco"}
+                if deteccao.get("erro"):
                     ignoradas.append(host)
+                    relatorio.append({"site": host, "resultado": deteccao["erro"]})
+                    continue
+                if deteccao.get("confianca", 0) < 0.45 or not essenciais.issubset(deteccao.get("seletores", {})):
+                    ignoradas.append(host)
+                    relatorio.append({"site": host, "resultado": "Seletores essenciais não foram identificados"})
                     continue
                 chave = unicodedata.normalize("NFKD", host.split(".")[0]).encode("ascii", "ignore").decode().lower()
                 chave = re.sub(r"[^a-z0-9]+", "_", chave).strip("_") or "nova_imobiliaria"
@@ -212,6 +219,7 @@ def renderizar_administracao():
                 }
                 dominios_existentes.add(host)
                 adicionadas.append(chave)
+                relatorio.append({"site": host, "resultado": f"Adicionado como {chave}"})
             if adicionadas:
                 config_path.write_text(yaml.safe_dump(config_atual, allow_unicode=True, sort_keys=False), encoding="utf-8")
                 for chave in adicionadas:
@@ -222,6 +230,8 @@ def renderizar_administracao():
             st.info("Nenhum site novo passou pela validação automática nesta execução.")
         if ignoradas:
             st.caption("Ignorados (já cadastrados ou sem confiança suficiente): " + ", ".join(ignoradas))
+        if relatorio:
+            st.dataframe(relatorio, use_container_width=True, hide_index=True)
 
     st.divider()
     st.subheader("Detectar seletores")
