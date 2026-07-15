@@ -351,6 +351,13 @@ tipos_selecionados = st.sidebar.multiselect(
     "Tipo de imóvel", options=tipos_disponiveis, default=[]
 )
 
+imobiliarias_disponiveis = db.listar_imobiliarias(
+    cidades=cidades_selecionadas, bairros=bairros_selecionados or None
+)
+imobiliarias_selecionadas = st.sidebar.multiselect(
+    "Imobiliária", options=imobiliarias_disponiveis, default=[]
+)
+
 preco_min_bd, preco_max_bd = db.faixa_preco()
 if preco_max_bd <= 0:
     preco_max_bd = 5000.0
@@ -373,6 +380,7 @@ imoveis = db.listar_imoveis(
     bairros=bairros_selecionados or None,
     cidades=cidades_selecionadas or None,
     tipos=tipos_selecionados or None,
+    imobiliarias=imobiliarias_selecionadas or None,
 )
 
 st.title("Imóveis disponíveis para alugar")

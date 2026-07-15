@@ -96,7 +96,7 @@ def remover_ausentes(site_key: str, urls_ativas: list):
         )
 
 
-def listar_imoveis(preco_min=None, preco_max=None, bairros=None, cidades=None, tipos=None, ordenar_por="recentes"):
+def listar_imoveis(preco_min=None, preco_max=None, bairros=None, cidades=None, tipos=None, imobiliarias=None, ordenar_por="recentes"):
     query = "SELECT * FROM imoveis WHERE 1=1"
     params = []
     if preco_min is not None:
@@ -117,6 +117,10 @@ def listar_imoveis(preco_min=None, preco_max=None, bairros=None, cidades=None, t
         placeholders = ",".join("?" * len(tipos))
         query += f" AND tipo IN ({placeholders})"
         params.extend(tipos)
+    if imobiliarias:
+        placeholders = ",".join("?" * len(imobiliarias))
+        query += f" AND imobiliaria IN ({placeholders})"
+        params.extend(imobiliarias)
 
     ordens = {
         "recentes": "coletado_em DESC",
@@ -153,6 +157,23 @@ def listar_tipos(cidades=None, bairros=None):
     with get_conn() as conn:
         rows = conn.execute(query, params).fetchall()
         return [r["tipo"] for r in rows]
+
+
+def listar_imobiliarias(cidades=None, bairros=None):
+    query = "SELECT DISTINCT imobiliaria FROM imoveis WHERE imobiliaria IS NOT NULL"
+    params = []
+    if cidades:
+        placeholders = ",".join("?" * len(cidades))
+        query += f" AND cidade IN ({placeholders})"
+        params.extend(cidades)
+    if bairros:
+        placeholders = ",".join("?" * len(bairros))
+        query += f" AND bairro IN ({placeholders})"
+        params.extend(bairros)
+    query += " ORDER BY imobiliaria"
+    with get_conn() as conn:
+        rows = conn.execute(query, params).fetchall()
+        return [r["imobiliaria"] for r in rows]
 
 
 def listar_bairros(cidades=None):
