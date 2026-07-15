@@ -1,0 +1,25 @@
+# Catálogo de fontes verificadas fora da coleta ativa.
+# Somente fontes com aluguel entram em sites_config.yaml.
+venda_somente:
+  montbros:
+    nome: "MontBros Construtora"
+    site: "https://montbrosconstrutora.com/"
+    cidade: "Ipatinga"
+  santos_vale:
+    nome: "Santos Vale Participações"
+    site: "https://santosvale.com.br/"
+    cidade: "Ipatinga"
+
+aluguel_e_venda_verificados:
+  - "BRIT Imobiliária"
+  - "Certa Imóveis"
+  - "CIRSA Imóveis"
+  - "Diferencial Imóveis"
+  - "Dommus"
+  - "Gervi Engenharia"
+  - "JS Imóveis"
+  - "Minas Prime"
+  - "Moradia Imobiliária"
+  - "Portal Imóveis"
+  - "Única Imobiliária"
+  - "Unicom Imóveis"

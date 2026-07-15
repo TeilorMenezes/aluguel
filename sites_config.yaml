@@ -193,6 +193,26 @@ sites:
       max_paginas: 20
     seletores: {}
 
+  portal_imoveis:
+    nome: "Portal Imóveis"
+    logo: ""
+    base_url: "https://portalimoveisimobiliaria.com.br"
+    listagem_url: "https://portalimoveisimobiliaria.com.br/imoveis-locacao"
+    cidade_padrao: "Ipatinga"
+    paginacao:
+      tipo: "nenhuma"
+    seletores: {}
+
+  moradia:
+    nome: "Moradia Imobiliária"
+    logo: ""
+    base_url: "https://moradiaimobiliaria.com.br"
+    listagem_url: "https://moradiaimobiliaria.com.br/imoveis/?sortby=most_viewed&status=aluguel"
+    cidade_padrao: "Ipatinga"
+    paginacao:
+      tipo: "nenhuma"
+    seletores: {}
+
 # =============================================================================
 # CONFIGURAÇÃO DE AGENDAMENTO
 # =============================================================================

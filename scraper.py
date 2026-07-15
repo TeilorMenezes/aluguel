@@ -145,6 +145,20 @@ def _extrair_com_autocorrecao(page, cfg_site):
     proporção de títulos e preços preenchidos. Assim, um palpite ruim não
     substitui uma configuração que já funciona.
     """
+    # Fontes recém-cadastradas podem iniciar sem seletores. Nesse caso, a
+    # primeira varredura calibra a página antes de tentar extrair os cards.
+    if not cfg_site.get("seletores", {}).get("card"):
+        try:
+            sugestao_inicial = detectar_seletores(page.content())
+            essenciais = {"card", "link", "preco"}
+            if essenciais.issubset(sugestao_inicial.get("seletores", {})):
+                cfg_site["seletores"] = sugestao_inicial["seletores"]
+                salvar_padrao(sugestao_inicial.get("plataforma", "generico"), cfg_site["seletores"])
+            else:
+                return []
+        except Exception:
+            return []
+
     itens_originais = _extrair_cards(page, cfg_site)
     qualidade_original = _qualidade_extracao(itens_originais)
     if qualidade_original >= 0.8:
