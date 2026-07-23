@@ -28,7 +28,13 @@ from descobrir_sites import (
     remover_da_quarentena,
     registrar_quarentena,
 )
-from scheduler_runner import iniciar_agendador, rodar_agora_async, rodar_site_agora_async
+from publicacao_local import diagnosticar_publicacao, publicar_configuracoes
+from scheduler_runner import (
+    coletar_sites_sem_dados_async,
+    iniciar_agendador,
+    rodar_agora_async,
+    rodar_site_agora_async,
+)
 
 st.set_page_config(page_title="Mapa do Aluguel", layout="wide", page_icon="🏠")
 
@@ -56,6 +62,7 @@ garantir_chromium_instalado()
 db.init_db()
 db.remover_duplicata_diferencial()
 iniciar_agendador()  # cacheado via variável de módulo (só cria os jobs uma vez)
+coletar_sites_sem_dados_async()
 
 # -----------------------------------------------------------------------
 # Estilos (thumbnail com selo redondo da imobiliária)
@@ -1189,15 +1196,72 @@ def _renderizar_quarentena_admin():
         st.rerun()
 
 
+def _renderizar_publicacao_local_admin():
+    st.subheader("Publicar no site")
+    st.caption(
+        "Use esta área no seu computador depois de atualizar, descobrir e aprovar "
+        "as imobiliárias. Somente as configurações são enviadas ao GitHub."
+    )
+    st.markdown(
+        """
+        1. Execute **Atualizar agora** para testar a coleta local.
+        2. Revise e aprove os candidatos na **Quarentena**.
+        3. Volte aqui e publique as configurações aprovadas.
+        """
+    )
+
+    diagnostico = diagnosticar_publicacao()
+    if not diagnostico["disponivel"]:
+        st.info(
+            "A publicação está disponível somente na cópia local autenticada. "
+            + diagnostico["motivo"]
+        )
+        return
+
+    alterados = diagnostico.get("alterados", [])
+    commits_pendentes = diagnostico.get("commits_pendentes", 0)
+    if alterados:
+        st.success("Configurações locais prontas para publicação.")
+        st.code("\n".join(alterados))
+    elif commits_pendentes:
+        st.warning(
+            f"{commits_pendentes} commit(s) local(is) aguardando novo envio ao GitHub."
+        )
+    else:
+        st.info("Não existem configurações novas para publicar.")
+
+    if st.button(
+        "Publicar configurações no GitHub",
+        key="publicar_configuracoes_github",
+        use_container_width=True,
+        type="primary",
+        disabled=not alterados and not commits_pendentes,
+    ):
+        with st.spinner("Criando commit e enviando para a main..."):
+            resultado = publicar_configuracoes()
+        if resultado["ok"]:
+            st.success(
+                f"{resultado['mensagem']} Commit: {resultado.get('commit', '')}"
+            )
+            st.caption(
+                "Após o deploy, as imobiliárias que ainda não possuem imóveis "
+                "serão coletadas automaticamente."
+            )
+        else:
+            st.error(resultado["mensagem"])
+
+
 def renderizar_administracao():
     """Ações exibidas somente após autenticação administrativa."""
-    aba_operacoes, aba_quarentena = st.tabs(
-        ["Atualização e descoberta", "Quarentena"]
+    aba_operacoes, aba_quarentena, aba_publicacao = st.tabs(
+        ["Atualização e descoberta", "Quarentena", "Publicar no site"]
     )
     with aba_operacoes:
         _renderizar_operacoes_admin()
     with aba_quarentena:
         _renderizar_quarentena_admin()
+    with aba_publicacao:
+        _renderizar_publicacao_local_admin()
 
 
 def renderizar_landing(cidades):

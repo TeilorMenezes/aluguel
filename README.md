@@ -59,6 +59,19 @@ Isso abre a showpage no navegador. Ao iniciar, a aplicação já agenda:
 - uma varredura fixa todo dia às **9:10**
 - e você pode clicar em **"🔄 Atualizar agora"** na barra lateral a qualquer momento
 
+### Fluxo recomendado no computador local
+
+1. Abra `http://localhost:8501` e entre na Administração.
+2. Execute **Atualizar agora** para usar o processamento do computador.
+3. Descubra novas imobiliárias e revise as rejeitadas na **Quarentena**.
+4. Aprove somente os sites que extraírem card, link e preço corretamente.
+5. Na aba **Publicar no site**, clique em **Publicar configurações no GitHub**.
+
+O botão cria um commit apenas com `sites_config.yaml` e
+`detector_patterns.yaml`; banco de dados, quarentena e senhas nunca são
+incluídos. Depois do deploy, o site publicado coleta automaticamente as
+integrações que ainda não possuem imóveis.
+
 ## 4. Estrutura do projeto
 
 ```
