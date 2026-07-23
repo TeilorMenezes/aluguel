@@ -149,8 +149,8 @@ def remover_ausentes(site_key: str, urls_ativas: list):
         )
 
 
-def listar_imoveis(preco_min=None, preco_max=None, bairros=None, cidades=None, tipos=None, imobiliarias=None, ordenar_por="recentes"):
-    query = "SELECT * FROM imoveis WHERE 1=1"
+def _filtros_imoveis(preco_min=None, preco_max=None, bairros=None, cidades=None, tipos=None, imobiliarias=None):
+    query = " FROM imoveis WHERE 1=1"
     params = []
     if preco_min is not None:
         query += " AND preco >= ?"
@@ -174,13 +174,53 @@ def listar_imoveis(preco_min=None, preco_max=None, bairros=None, cidades=None, t
         placeholders = ",".join("?" * len(imobiliarias))
         query += f" AND imobiliaria IN ({placeholders})"
         params.extend(imobiliarias)
+    return query, params
+
+
+def contar_imoveis(preco_min=None, preco_max=None, bairros=None, cidades=None, tipos=None, imobiliarias=None):
+    query, params = _filtros_imoveis(
+        preco_min=preco_min,
+        preco_max=preco_max,
+        bairros=bairros,
+        cidades=cidades,
+        tipos=tipos,
+        imobiliarias=imobiliarias,
+    )
+    with get_conn() as conn:
+        row = conn.execute(f"SELECT COUNT(*) AS total{query}", params).fetchone()
+        return row["total"]
+
+
+def listar_imoveis(
+    preco_min=None,
+    preco_max=None,
+    bairros=None,
+    cidades=None,
+    tipos=None,
+    imobiliarias=None,
+    ordenar_por="recentes",
+    limite=None,
+    deslocamento=0,
+):
+    filtros, params = _filtros_imoveis(
+        preco_min=preco_min,
+        preco_max=preco_max,
+        bairros=bairros,
+        cidades=cidades,
+        tipos=tipos,
+        imobiliarias=imobiliarias,
+    )
+    query = f"SELECT *{filtros}"
 
     ordens = {
         "recentes": "coletado_em DESC",
-        "preco_asc": "preco ASC",
-        "preco_desc": "preco DESC",
+        "preco_asc": "preco IS NULL, preco ASC",
+        "preco_desc": "preco IS NULL, preco DESC",
     }
     query += f" ORDER BY {ordens.get(ordenar_por, ordens['recentes'])}"
+    if limite is not None:
+        query += " LIMIT ? OFFSET ?"
+        params.extend([limite, max(0, deslocamento)])
 
     with get_conn() as conn:
         rows = conn.execute(query, params).fetchall()

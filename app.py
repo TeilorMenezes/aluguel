@@ -1590,6 +1590,31 @@ st.markdown(
         letter-spacing: -.04em;
     }
     .mv-result-summary p { margin: 0; color: #61716c; }
+    .st-key-mv_pagination {
+        margin: 2.5rem auto 1rem;
+        padding: .8rem;
+        background: #f7faf8;
+        border: 1px solid #e1e9e5;
+        border-radius: 1rem;
+    }
+    .st-key-mv_pagination p {
+        margin: .65rem 0 0;
+        color: #53655f;
+        font-size: .86rem;
+        font-weight: 700;
+        text-align: center;
+    }
+    .st-key-mv_pagination button {
+        min-height: 2.8rem;
+        color: #0b4f49;
+        background: white;
+        border: 1px solid #cddbd6;
+    }
+    .st-key-mv_pagination button:hover:not(:disabled) {
+        color: white;
+        background: #0b4f49;
+        border-color: #0b4f49;
+    }
     .mv-empty {
         margin: 2rem 0;
         padding: 4rem 2rem;
@@ -2085,7 +2110,25 @@ def renderizar_resultados_v2():
     st.query_params["cidade"] = cidade
     st.query_params["tipo"] = tipo
     tipos_consulta = None if tipo == "Todos os tipos" else [tipo]
-    imoveis = db.listar_imoveis(
+    ordem_banco = {
+        "Mais recentes": "recentes",
+        "Menor preço": "preco_asc",
+        "Maior preço": "preco_desc",
+    }[ordenacao]
+    assinatura_paginacao = (
+        cidade,
+        tuple(bairros_selecionados),
+        tipo,
+        tuple(imobiliarias_selecionadas),
+        faixa,
+        ordenacao,
+    )
+    if st.session_state.get("_assinatura_paginacao_v2") != assinatura_paginacao:
+        st.session_state["_assinatura_paginacao_v2"] = assinatura_paginacao
+        st.session_state["pagina_resultados_v2"] = 1
+
+    itens_por_pagina = 12
+    total_imoveis = db.contar_imoveis(
         preco_min=faixa[0],
         preco_max=faixa[1],
         bairros=bairros_selecionados or None,
@@ -2093,24 +2136,40 @@ def renderizar_resultados_v2():
         tipos=tipos_consulta,
         imobiliarias=imobiliarias_selecionadas or None,
     )
-    if ordenacao == "Menor preço":
-        imoveis = sorted(imoveis, key=lambda item: (item["preco"] is None, item["preco"] or 0))
-    elif ordenacao == "Maior preço":
-        imoveis = sorted(imoveis, key=lambda item: (item["preco"] is None, -(item["preco"] or 0)))
+    total_paginas = max(1, (total_imoveis + itens_por_pagina - 1) // itens_por_pagina)
+    pagina_atual = min(
+        max(1, st.session_state.get("pagina_resultados_v2", 1)),
+        total_paginas,
+    )
+    st.session_state["pagina_resultados_v2"] = pagina_atual
+    st.query_params["pagina"] = str(pagina_atual)
+    imoveis = db.listar_imoveis(
+        preco_min=faixa[0],
+        preco_max=faixa[1],
+        bairros=bairros_selecionados or None,
+        cidades=[cidade],
+        tipos=tipos_consulta,
+        imobiliarias=imobiliarias_selecionadas or None,
+        ordenar_por=ordem_banco,
+        limite=itens_por_pagina,
+        deslocamento=(pagina_atual - 1) * itens_por_pagina,
+    )
+    primeiro_item = (pagina_atual - 1) * itens_por_pagina + 1 if total_imoveis else 0
+    ultimo_item = min(pagina_atual * itens_por_pagina, total_imoveis)
 
     st.markdown(
         f"""
         <div class="mv-result-summary">
             <div>
                 <h2>Imóveis encontrados</h2>
-                <p>{len(imoveis)} opções em {html.escape(cidade)}</p>
+                <p>{total_imoveis} opções em {html.escape(cidade)} · mostrando {primeiro_item}–{ultimo_item}</p>
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    aba_lista, aba_mapa = st.tabs(["Lista de imóveis", "Ver no mapa"])
+    aba_lista, aba_mapa = st.tabs(["Lista de imóveis", "Mapa desta página"])
     with aba_lista:
         if not imoveis:
             st.markdown(
@@ -2188,6 +2247,30 @@ def renderizar_resultados_v2():
                     icon=folium.Icon(color="green", icon="home", prefix="fa"),
                 ).add_to(cluster)
             st_folium(mapa, use_container_width=True, height=620)
+
+    if total_paginas > 1:
+        with st.container(key="mv_pagination"):
+            coluna_anterior, coluna_pagina, coluna_proxima = st.columns([1, 1.4, 1])
+            with coluna_anterior:
+                if st.button(
+                    "← Página anterior",
+                    disabled=pagina_atual == 1,
+                    use_container_width=True,
+                    key="pagina_anterior_v2",
+                ):
+                    st.session_state["pagina_resultados_v2"] = pagina_atual - 1
+                    st.rerun()
+            with coluna_pagina:
+                st.markdown(f"Página {pagina_atual} de {total_paginas}")
+            with coluna_proxima:
+                if st.button(
+                    "Próxima página →",
+                    disabled=pagina_atual == total_paginas,
+                    use_container_width=True,
+                    key="pagina_proxima_v2",
+                ):
+                    st.session_state["pagina_resultados_v2"] = pagina_atual + 1
+                    st.rerun()
     renderizar_footer_v2()
 
 
