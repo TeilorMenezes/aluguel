@@ -37,10 +37,14 @@ EXCLUIR_DOMINIOS = {
     "linkedin.com",
     "tiktok.com",
     "youtube.com",
+    "yahoo.com",
+    "uservoice.com",
     "google.com",
     "google.com.br",
     "maps.google.com",
     "bing.com",
+    "brave.com",
+    "search.brave.com",
     "duckduckgo.com",
     "olx.com.br",
     "vivareal.com.br",
@@ -49,6 +53,13 @@ EXCLUIR_DOMINIOS = {
     "chavesnamao.com.br",
     "quintoandar.com.br",
     "mercadolivre.com.br",
+    "mgfimoveis.com.br",
+    "mitula.com.br",
+    "nestoria.com.br",
+    "properati.com.br",
+    "rentola.com.br",
+    "redeinovaimoveis.com.br",
+    "trovit.com.br",
     "wimoveis.com.br",
     "123i.com.br",
     "cnpj.biz",
@@ -203,9 +214,14 @@ def url_canonica(url):
 
 
 def url_resultado(href):
-    """Extrai o destino de links de redirecionamento do DuckDuckGo."""
+    """Extrai o destino de links de redirecionamento de buscadores."""
     params = parse_qs(urlparse(href).query)
-    return unquote(params["uddg"][0]) if "uddg" in params else href
+    if "uddg" in params:
+        return unquote(params["uddg"][0])
+    destino_yahoo = re.search(r"/RU=([^/]+)/(?:RK|RS)=", urlparse(href).path)
+    if destino_yahoo:
+        return unquote(destino_yahoo.group(1))
+    return href
 
 
 def _sessao():
@@ -219,29 +235,93 @@ def buscar(nome, municipio, sessao=None):
     return buscar_consulta(consulta, sessao=sessao)
 
 
-def buscar_consulta(consulta, sessao=None, limite=12):
-    sessao = sessao or _sessao()
+def _coletar_links_busca(soup, seletores, limite):
+    resultados, vistos = [], set()
+    for seletor in seletores:
+        for link in soup.select(seletor):
+            href = link.get("href", "").strip()
+            url = url_canonica(url_resultado(href))
+            host = dominio(url)
+            if (
+                not url.startswith(("http://", "https://"))
+                or not host
+                or dominio_excluido(host)
+                or url in vistos
+            ):
+                continue
+            vistos.add(url)
+            resultados.append((url, link.get_text(" ", strip=True)))
+            if len(resultados) >= limite:
+                return resultados
+    return resultados
+
+
+def _buscar_brave(consulta, sessao, limite):
+    resposta = sessao.get(
+        "https://search.brave.com/search",
+        params={"q": consulta, "source": "web"},
+        timeout=25,
+    )
+    resposta.raise_for_status()
+    soup = BeautifulSoup(resposta.text, "html.parser")
+    return _coletar_links_busca(
+        soup,
+        (
+            'a[data-testid="result-title-a"][href]',
+            "div.snippet a[href]",
+        ),
+        limite,
+    )
+
+
+def _buscar_yahoo(consulta, sessao, limite):
+    resposta = sessao.get(
+        "https://search.yahoo.com/search",
+        params={"p": consulta},
+        timeout=25,
+    )
+    resposta.raise_for_status()
+    soup = BeautifulSoup(resposta.text, "html.parser")
+    return _coletar_links_busca(
+        soup,
+        ('a[href*="/RU=http"]',),
+        limite,
+    )
+
+
+def _buscar_duckduckgo(consulta, sessao, limite):
     resposta = sessao.get(
         "https://html.duckduckgo.com/html/",
         params={"q": consulta},
         timeout=25,
     )
     resposta.raise_for_status()
+    if resposta.status_code == 202 or any(
+        termo in resposta.text.lower()
+        for termo in ("anomaly-modal", "challenge-form", "bots use duckduckgo")
+    ):
+        return []
     soup = BeautifulSoup(resposta.text, "html.parser")
+    return _coletar_links_busca(soup, ("a.result__a[href]",), limite)
+
+
+def buscar_consulta(consulta, sessao=None, limite=12):
+    """Consulta fontes públicas, alternando automaticamente em caso de bloqueio."""
+    sessao = sessao or _sessao()
     resultados, vistos = [], set()
-    for link in soup.select("a.result__a, a[href]"):
-        url = url_canonica(url_resultado(link.get("href", "")))
-        host = dominio(url)
-        if (
-            not url.startswith(("http://", "https://"))
-            or not host
-            or dominio_excluido(host)
-            or url in vistos
-        ):
-            continue
-        vistos.add(url)
-        resultados.append((url, link.get_text(" ", strip=True)))
-        if len(resultados) >= limite:
+    for provedor in (_buscar_brave, _buscar_yahoo, _buscar_duckduckgo):
+        try:
+            encontrados = provedor(consulta, sessao, limite)
+        except requests.RequestException:
+            encontrados = []
+        for url, titulo in encontrados:
+            if url in vistos:
+                continue
+            vistos.add(url)
+            resultados.append((url, titulo))
+            if len(resultados) >= limite:
+                return resultados
+        if resultados:
             break
     return resultados
 

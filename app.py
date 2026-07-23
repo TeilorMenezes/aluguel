@@ -839,6 +839,16 @@ def renderizar_administracao():
             config_atual = yaml.safe_load(config_path.read_text(encoding="utf-8"))
             dominios_existentes = {urlparse(site["base_url"]).netloc.removeprefix("www.") for site in config_atual["sites"].values()}
             adicionadas, ignoradas, quarentena, relatorio = [], [], [], []
+            if not candidatos:
+                relatorio.append({
+                    "site": "Busca pública",
+                    "descoberta": 0,
+                    "qualidade": "",
+                    "resultado": (
+                        "Nenhum candidato retornado pelas fontes de busca. "
+                        "Tente outra cidade ou execute novamente mais tarde."
+                    ),
+                })
             for candidato in candidatos:
                 host = candidato.get("dominio") or urlparse(candidato["url"]).netloc.removeprefix("www.")
                 if host in dominios_existentes:
