@@ -109,6 +109,18 @@ HEADERS = {
     "Accept-Language": "pt-BR,pt;q=0.9",
 }
 QUARENTENA_PATH = Path(__file__).parent / "data" / "imobiliarias_quarentena.csv"
+QUARENTENA_CAMPOS = [
+    "dominio",
+    "nome",
+    "municipio",
+    "url",
+    "score_descoberta",
+    "confianca_detector",
+    "qualidade_extracao",
+    "motivo",
+    "evidencias",
+    "ultima_verificacao",
+]
 IBGE_LOCALIDADES_URL = "https://servicodados.ibge.gov.br/api/v1/localidades"
 
 # Fontes regionais conhecidas entram como sementes, mas não recebem aprovação
@@ -718,6 +730,36 @@ def descobrir_urls_estado(uf, nome_estado, limite=10):
         candidato["estado"] = uf.upper()
         candidato["escopo"] = "estado"
     return candidatos
+
+
+def listar_quarentena(caminho=QUARENTENA_PATH):
+    caminho = Path(caminho)
+    if not caminho.is_file():
+        return []
+    with caminho.open(encoding="utf-8-sig", newline="") as arquivo:
+        return list(csv.DictReader(arquivo))
+
+
+def remover_da_quarentena(host, caminho=QUARENTENA_PATH):
+    caminho = Path(caminho)
+    host = dominio(host) or str(host).strip().lower().removeprefix("www.")
+    linhas = [
+        linha
+        for linha in listar_quarentena(caminho)
+        if linha.get("dominio", "").lower() != host
+    ]
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    with caminho.open("w", encoding="utf-8-sig", newline="") as arquivo:
+        escritor = csv.DictWriter(arquivo, fieldnames=QUARENTENA_CAMPOS)
+        escritor.writeheader()
+        escritor.writerows(
+            {
+                campo: linha.get(campo, "")
+                for campo in QUARENTENA_CAMPOS
+            }
+            for linha in linhas
+        )
+    return len(linhas)
 
 
 def registrar_quarentena(itens, caminho=QUARENTENA_PATH):
