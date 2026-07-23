@@ -1553,6 +1553,21 @@ st.markdown(
         background: linear-gradient(110deg, #07534b 0%, #f1c45b 100%) !important;
         box-shadow: 0 0 0 .24rem rgba(241,196,91,.18) !important;
     }
+    [data-testid="stSelectbox"] .react-aria-ComboBox > div:has(input[role="combobox"]) {
+        box-sizing: border-box;
+        background:
+            linear-gradient(#f3f7f5, #f3f7f5) padding-box,
+            linear-gradient(110deg, #07534b 0%, #168072 48%, #f1c45b 100%) border-box !important;
+        border: 2px solid transparent !important;
+        border-radius: .72rem !important;
+        transition: box-shadow .2s ease, background .2s ease;
+    }
+    [data-testid="stSelectbox"] .react-aria-ComboBox:focus-within > div:has(input[role="combobox"]) {
+        background:
+            linear-gradient(white, white) padding-box,
+            linear-gradient(110deg, #07534b 0%, #f1c45b 100%) border-box !important;
+        box-shadow: 0 0 0 .24rem rgba(241,196,91,.18) !important;
+    }
     [data-testid="stSlider"] {
         box-sizing: border-box;
         padding: .7rem .85rem .45rem;
