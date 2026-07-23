@@ -1931,7 +1931,7 @@ def renderizar_landing_v2():
     )
 
     cidades_base = ["Ipatinga", "Timóteo", "Coronel Fabriciano", "Santana do Paraíso"]
-    cidades = list(dict.fromkeys(db.listar_cidades() + cidades_base))
+    cidades = ["Todas as cidades"] + list(dict.fromkeys(db.listar_cidades() + cidades_base))
     with st.container(key="mv_v2_search"):
         with st.form("busca_landing_v2"):
             coluna_cidade, coluna_tipo, coluna_botao = st.columns([1.2, 1, .85], vertical_alignment="bottom")
@@ -2065,7 +2065,8 @@ def _preco_formatado(valor):
 def renderizar_resultados_v2():
     renderizar_header_v2("resultados")
     cidades_base = ["Ipatinga", "Timóteo", "Coronel Fabriciano", "Santana do Paraíso"]
-    cidades = list(dict.fromkeys(db.listar_cidades() + cidades_base))
+    todas_cidades = "Todas as cidades"
+    cidades = [todas_cidades] + list(dict.fromkeys(db.listar_cidades() + cidades_base))
     cidade_parametro = st.query_params.get("cidade")
     tipo_parametro = st.query_params.get("tipo") or st.query_params.get("categoria")
     assinatura_rota = (cidade_parametro, tipo_parametro)
@@ -2078,16 +2079,24 @@ def renderizar_resultados_v2():
             st.session_state["filtro_tipo_v2"] = tipo_parametro
         st.session_state["_assinatura_resultados_v2"] = assinatura_rota
 
-    cidade_atual = st.session_state.get("cidade_resultados", cidades[0])
+    cidade_atual = st.session_state.get(
+        "filtro_cidade_v2",
+        st.session_state.get("cidade_resultados", cidades[0]),
+    )
     if cidade_atual not in cidades:
         cidade_atual = cidades[0]
 
+    titulo_localidade = (
+        "em todas as cidades"
+        if cidade_atual == todas_cidades
+        else f"em {html.escape(cidade_atual)}"
+    )
     st.markdown(
         f"""
         <section class="mv-results-hero">
             <div class="mv-results-title">
                 <div class="mv-eyebrow">Encontre seu próximo endereço</div>
-                <h1>Imóveis para alugar em {html.escape(cidade_atual)}.</h1>
+                <h1>Imóveis para alugar {titulo_localidade}.</h1>
                 <p>Compare as opções das imobiliárias da região e refine sua busca sem sair desta página.</p>
             </div>
         </section>
@@ -2109,7 +2118,13 @@ def renderizar_resultados_v2():
                 key="filtro_cidade_v2",
                 **cidade_padrao,
             )
-        bairros = db.listar_bairros(cidades=[cidade])
+        cidades_consulta = None if cidade == todas_cidades else [cidade]
+        titulo_localidade = (
+            "em todas as cidades"
+            if cidade == todas_cidades
+            else f"em {html.escape(cidade)}"
+        )
+        bairros = db.listar_bairros(cidades=cidades_consulta)
         with linha_um[1]:
             bairros_selecionados = st.multiselect(
                 "Bairro",
@@ -2117,7 +2132,7 @@ def renderizar_resultados_v2():
                 key="filtro_bairros_v2",
                 placeholder="Escolha uma opção",
             )
-        tipos_bd = db.listar_tipos(cidades=[cidade], bairros=bairros_selecionados or None)
+        tipos_bd = db.listar_tipos(cidades=cidades_consulta, bairros=bairros_selecionados or None)
         tipos = list(dict.fromkeys(["Todos os tipos"] + tipos_bd + ["Apartamento", "Casa", "Kitnet"]))
         tipo_inicial = st.session_state.get("tipo_resultados", "Todos os tipos")
         if tipo_inicial not in tipos:
@@ -2134,7 +2149,7 @@ def renderizar_resultados_v2():
                 key="filtro_tipo_v2",
                 **tipo_padrao,
             )
-        imobiliarias = db.listar_imobiliarias(cidades=[cidade], bairros=bairros_selecionados or None)
+        imobiliarias = db.listar_imobiliarias(cidades=cidades_consulta, bairros=bairros_selecionados or None)
         with linha_um[3]:
             imobiliarias_selecionadas = st.multiselect(
                 "Imobiliária",
@@ -2189,7 +2204,7 @@ def renderizar_resultados_v2():
         preco_min=faixa[0],
         preco_max=faixa[1],
         bairros=bairros_selecionados or None,
-        cidades=[cidade],
+        cidades=cidades_consulta,
         tipos=tipos_consulta,
         imobiliarias=imobiliarias_selecionadas or None,
     )
@@ -2204,7 +2219,7 @@ def renderizar_resultados_v2():
         preco_min=faixa[0],
         preco_max=faixa[1],
         bairros=bairros_selecionados or None,
-        cidades=[cidade],
+        cidades=cidades_consulta,
         tipos=tipos_consulta,
         imobiliarias=imobiliarias_selecionadas or None,
         ordenar_por=ordem_banco,
@@ -2219,7 +2234,7 @@ def renderizar_resultados_v2():
         <div class="mv-result-summary">
             <div>
                 <h2>Imóveis encontrados</h2>
-                <p>{total_imoveis} opções em {html.escape(cidade)} · mostrando {primeiro_item}–{ultimo_item}</p>
+                <p>{total_imoveis} opções {titulo_localidade} · mostrando {primeiro_item}–{ultimo_item}</p>
             </div>
         </div>
         """,
