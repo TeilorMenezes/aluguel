@@ -2062,7 +2062,12 @@ def renderizar_resultados_v2():
             )
         bairros = db.listar_bairros(cidades=[cidade])
         with linha_um[1]:
-            bairros_selecionados = st.multiselect("Bairro", bairros, key="filtro_bairros_v2")
+            bairros_selecionados = st.multiselect(
+                "Bairro",
+                bairros,
+                key="filtro_bairros_v2",
+                placeholder="Escolha uma opção",
+            )
         tipos_bd = db.listar_tipos(cidades=[cidade], bairros=bairros_selecionados or None)
         tipos = list(dict.fromkeys(["Todos os tipos"] + tipos_bd + ["Apartamento", "Casa", "Kitnet"]))
         tipo_inicial = st.session_state.get("tipo_resultados", "Todos os tipos")
@@ -2086,6 +2091,7 @@ def renderizar_resultados_v2():
                 "Imobiliária",
                 imobiliarias,
                 key="filtro_imobiliarias_v2",
+                placeholder="Escolha uma opção",
             )
 
         preco_min_bd, preco_max_bd = db.faixa_preco()
