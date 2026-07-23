@@ -2,7 +2,7 @@
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 from playwright.sync_api import TimeoutError as PWTimeout, sync_playwright
@@ -10,6 +10,13 @@ import yaml
 
 
 PRECO_RE = re.compile(r"(?:R\$\s*)?\d{1,3}(?:\.\d{3})*(?:,\d{2})|consultar", re.I)
+ALUGUEL_RE = re.compile(r"\b(?:aluguel|alugar|loca(?:ç|c)[aã]o|locar)\b", re.I)
+VENDA_RE = re.compile(r"\b(?:venda|vender|comprar)\b", re.I)
+CAMINHO_IMOVEL_RE = re.compile(
+    r"(?:imovel|imóveis?|property|detalhe|aluguel|alugar|loca(?:ç|c)[aã]o)",
+    re.I,
+)
+ATRIBUTOS_IMAGEM = ("src", "data-src", "data-lazy-src", "data-original")
 PADROES_PATH = Path(__file__).parent / "detector_patterns.yaml"
 
 
@@ -67,7 +74,11 @@ def _padrao_valido(soup, padrao: dict) -> dict:
 
 def _assinatura(tag):
     classes = tag.get("class") or []
-    return (tag.name, tuple(sorted(classes))) if classes else None
+    classes_seguras = [
+        classe for classe in classes
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]*", classe)
+    ]
+    return (tag.name, tuple(sorted(classes_seguras))) if classes_seguras else None
 
 
 def _css(assinatura):
@@ -81,6 +92,147 @@ def _texto(tag):
 
 def _melhor(candidatos):
     return max(candidatos, key=lambda item: item[0], default=(0, None))
+
+
+def _atributo_imagem(tag):
+    if not tag or tag.name != "img":
+        return ""
+    for atributo in ATRIBUTOS_IMAGEM:
+        valor = (tag.get(atributo) or "").strip()
+        if valor and not valor.startswith("data:image"):
+            return atributo
+    return ""
+
+
+def _href_valido(tag):
+    href = (tag.get("href") or "").strip() if tag else ""
+    return bool(
+        href
+        and not href.startswith(("#", "javascript:", "mailto:", "tel:"))
+    )
+
+
+def avaliar_extracao(html: str, seletores: dict, pagina_url: str = "") -> dict:
+    """Mede se os seletores produzem cards utilizáveis, não apenas elementos.
+
+    A confiança heurística identifica padrões repetidos. Esta segunda etapa
+    valida os dados extraídos de uma amostra para impedir o cadastro automático
+    de menus, carrosséis, notícias ou páginas exclusivas de venda.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    motivos = []
+    try:
+        cards = soup.select(seletores.get("card", ""))
+    except Exception:
+        cards = []
+
+    if not cards:
+        return {
+            "qualidade_extracao": 0.0,
+            "publicavel": False,
+            "eh_listagem_aluguel": False,
+            "motivos_validacao": ["O seletor de card não retornou elementos."],
+            "taxas_campos": {},
+        }
+
+    amostra = cards[: min(24, len(cards))]
+
+    def selecionar(card, campo):
+        seletor = seletores.get(campo)
+        if not seletor:
+            return None
+        try:
+            return card.select_one(seletor)
+        except Exception:
+            return None
+
+    links_validos = 0
+    precos_validos = 0
+    titulos_validos = 0
+    imagens_validas = 0
+    hrefs = set()
+
+    for card in amostra:
+        link = selecionar(card, "link")
+        if _href_valido(link):
+            href = urljoin(pagina_url, link.get("href", ""))
+            if urlparse(href).scheme in {"http", "https"}:
+                links_validos += 1
+                hrefs.add(href)
+
+        preco = selecionar(card, "preco")
+        texto_preco = _texto(preco)
+        if PRECO_RE.search(texto_preco) and len(texto_preco) <= 100:
+            precos_validos += 1
+
+        titulo = selecionar(card, "titulo")
+        texto_titulo = _texto(titulo)
+        if 4 <= len(texto_titulo) <= 220:
+            titulos_validos += 1
+
+        imagem = selecionar(card, "thumbnail")
+        if _atributo_imagem(imagem):
+            imagens_validas += 1
+
+    total = len(amostra)
+    taxas = {
+        "link": round(links_validos / total, 2),
+        "preco": round(precos_validos / total, 2),
+        "titulo": round(titulos_validos / total, 2),
+        "thumbnail": round(imagens_validas / total, 2),
+        "links_unicos": len(hrefs),
+    }
+
+    texto_pagina = soup.get_text(" ", strip=True)
+    url_normalizada = pagina_url.lower()
+    ocorrencias_aluguel = len(ALUGUEL_RE.findall(texto_pagina[:300000]))
+    ocorrencias_venda = len(VENDA_RE.findall(texto_pagina[:300000]))
+    aluguel_na_url = bool(ALUGUEL_RE.search(url_normalizada))
+    eh_listagem_aluguel = bool(
+        aluguel_na_url
+        or (
+            ocorrencias_aluguel >= 2
+            and ocorrencias_aluguel >= max(1, ocorrencias_venda)
+        )
+    )
+
+    quantidade_score = min(1.0, len(cards) / 8)
+    qualidade = (
+        taxas["link"] * 0.30
+        + taxas["preco"] * 0.27
+        + taxas["titulo"] * 0.18
+        + taxas["thumbnail"] * 0.15
+        + quantidade_score * 0.10
+    )
+    if len(hrefs) < min(3, total):
+        qualidade *= 0.75
+        motivos.append("Poucos links de anúncios distintos foram encontrados.")
+    if taxas["preco"] < 0.5:
+        motivos.append("Menos da metade dos cards possui preço reconhecível.")
+    if taxas["titulo"] < 0.5:
+        motivos.append("Menos da metade dos cards possui título utilizável.")
+    if taxas["thumbnail"] < 0.35:
+        motivos.append("Poucas imagens válidas foram encontradas nos cards.")
+    if not eh_listagem_aluguel:
+        motivos.append("A página não demonstrou ser uma listagem específica de aluguel.")
+
+    essenciais = {"card", "link", "preco"}.issubset(seletores)
+    publicavel = bool(
+        essenciais
+        and len(cards) >= 3
+        and taxas["link"] >= 0.65
+        and taxas["preco"] >= 0.5
+        and max(taxas["titulo"], taxas["thumbnail"]) >= 0.5
+        and eh_listagem_aluguel
+        and qualidade >= 0.62
+    )
+    return {
+        "qualidade_extracao": round(min(1.0, qualidade), 2),
+        "publicavel": publicavel,
+        "eh_listagem_aluguel": eh_listagem_aluguel,
+        "motivos_validacao": motivos,
+        "taxas_campos": taxas,
+    }
 
 
 def detectar_seletores(html: str) -> dict:
@@ -106,7 +258,23 @@ def detectar_seletores(html: str) -> dict:
         if descendentes < 3:
             continue
         taxa_preco = sum(bool(PRECO_RE.search(_texto(t))) for t in tags) / len(tags)
-        score = min(len(tags), 20) / 20 * 0.25 + min(descendentes, 25) / 25 * 0.35 + taxa_preco * 0.40
+        taxa_link = sum(any(_href_valido(a) for a in t.find_all("a")) for t in tags) / len(tags)
+        taxa_imagem = sum(any(_atributo_imagem(img) for img in t.find_all("img")) for t in tags) / len(tags)
+        taxa_titulo = sum(
+            any(4 <= len(_texto(h)) <= 220 for h in t.find_all(re.compile(r"^h[1-6]$")))
+            for t in tags
+        ) / len(tags)
+        sinais = sum(taxa >= 0.4 for taxa in (taxa_preco, taxa_link, taxa_imagem, taxa_titulo))
+        if sinais < 2 or taxa_link < 0.35:
+            continue
+        score = (
+            min(len(tags), 20) / 20 * 0.12
+            + min(descendentes, 25) / 25 * 0.16
+            + taxa_preco * 0.30
+            + taxa_link * 0.22
+            + taxa_imagem * 0.10
+            + taxa_titulo * 0.10
+        )
         cards.append((score, assinatura, tags))
 
     score_card, assinatura_card, tags_card = _melhor(cards)
@@ -136,10 +304,29 @@ def detectar_seletores(html: str) -> dict:
         return [(base + len(cards_com_tag) / quantidade, assinatura)
                 for assinatura, cards_com_tag in encontrados.items()]
 
-    _, link = _melhor(candidatos_desc(lambda t: t.name == "a" and t.get("href"), 0.0))
-    _, preco = _melhor(candidatos_desc(lambda t: bool(PRECO_RE.search(_texto(t))), 0.25))
-    _, thumbnail = _melhor(candidatos_desc(lambda t: t.name == "img" and t.get("src"), 0.0))
-    _, titulo = _melhor(candidatos_desc(lambda t: t.name in {"h1", "h2", "h3", "h4", "h5", "h6"} and len(_texto(t)) > 3, 0.15))
+    _, link = _melhor(candidatos_desc(
+        lambda t: t.name == "a"
+        and _href_valido(t)
+        and (
+            CAMINHO_IMOVEL_RE.search(t.get("href", ""))
+            or 4 <= len(_texto(t)) <= 220
+            or bool(t.find("img"))
+        ),
+        0.15,
+    ))
+    _, preco = _melhor(candidatos_desc(
+        lambda t: bool(PRECO_RE.search(_texto(t))) and len(_texto(t)) <= 100,
+        0.25,
+    ))
+    _, thumbnail = _melhor(candidatos_desc(
+        lambda t: t.name == "img" and bool(_atributo_imagem(t)),
+        0.1,
+    ))
+    _, titulo = _melhor(candidatos_desc(
+        lambda t: t.name in {"h1", "h2", "h3", "h4", "h5", "h6"}
+        and 4 <= len(_texto(t)) <= 220,
+        0.15,
+    ))
     _, bairro = _melhor(candidatos_desc(
         lambda t: any(p in " ".join(t.get("class") or []).lower() for p in ("bairro", "endereco", "address", "local")),
         0.15,
@@ -151,7 +338,16 @@ def detectar_seletores(html: str) -> dict:
         if assinatura:
             seletores[campo] = _css(assinatura)
     if thumbnail:
-        seletores["thumbnail_attr"] = "src"
+        primeira_imagem = next(
+            (
+                tag
+                for card in tags_card
+                for tag in card.select(_css(thumbnail))
+                if _atributo_imagem(tag)
+            ),
+            None,
+        )
+        seletores["thumbnail_attr"] = _atributo_imagem(primeira_imagem) or "src"
 
     if padrao_aprendido:
         seletores.update(padrao_aprendido)
@@ -185,8 +381,22 @@ def inspecionar_url(url: str) -> dict:
             try:
                 page.goto(url, timeout=60000, wait_until="domcontentloaded")
                 page.wait_for_timeout(4000)
-                resultado = detectar_seletores(page.content())
+                html = page.content()
+                resultado = detectar_seletores(html)
                 resultado["url"] = page.url
+                if not resultado.get("erro"):
+                    validacao = avaliar_extracao(
+                        html,
+                        resultado.get("seletores", {}),
+                        page.url,
+                    )
+                    resultado.update(validacao)
+                    resultado["confianca_heuristica"] = resultado["confianca"]
+                    resultado["confianca"] = round(
+                        resultado["confianca"] * 0.55
+                        + validacao["qualidade_extracao"] * 0.45,
+                        2,
+                    )
                 return resultado
             finally:
                 browser.close()

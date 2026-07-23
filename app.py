@@ -16,7 +16,16 @@ from streamlit_folium import st_folium
 
 import db
 from detector import detectar_seletores, inspecionar_url, salvar_padrao
-from descobrir_sites import descobrir_urls_vale_aco
+from descobrir_sites import (
+    descobrir_urls_estado,
+    descobrir_urls_regiao,
+    listar_estados_ibge,
+    listar_municipios_estado_ibge,
+    listar_municipios_regiao_ibge,
+    listar_regioes_imediatas_ibge,
+    normalizar_texto,
+    registrar_quarentena,
+)
 from scheduler_runner import iniciar_agendador, rodar_agora_async, rodar_site_agora_async
 
 st.set_page_config(page_title="Mapa do Aluguel", layout="wide", page_icon="🏠")
@@ -686,30 +695,224 @@ def renderizar_administracao():
                 st.success("Primeira coleta concluída. Atualize a página para ver os imóveis.")
 
     st.divider()
-    st.subheader("Encontrar imobiliárias no Vale do Aço")
-    st.caption("Busca sites públicos de aluguel em Ipatinga, Timóteo, Coronel Fabriciano e Santana do Paraíso. No máximo cinco domínios são inspecionados por execução.")
-    if st.button("Buscar, inspecionar e cadastrar sites", key="descobrir_vale_aco", use_container_width=True):
+    st.subheader("Encontrar imobiliárias automaticamente")
+    st.caption(
+        "Escolha um estado e pesquise o estado inteiro, uma Região Geográfica "
+        "Imediata do IBGE ou uma cidade específica. O sistema localiza a página "
+        "de aluguel e valida uma amostra dos cards antes de cadastrar."
+    )
+
+    erro_localidades = ""
+    try:
+        estados_busca = listar_estados_ibge()
+    except Exception as exc:
+        estados_busca = [{"sigla": "MG", "nome": "Minas Gerais", "id": 31}]
+        erro_localidades = f"Não foi possível consultar o IBGE agora: {exc}"
+
+    opcoes_estado = {
+        f"{estado['nome']} ({estado['sigla']})": estado
+        for estado in estados_busca
+    }
+    labels_estado = list(opcoes_estado)
+    indice_mg = next(
+        (indice for indice, label in enumerate(labels_estado) if label.endswith("(MG)")),
+        0,
+    )
+    estado_label = st.selectbox(
+        "Estado",
+        labels_estado,
+        index=indice_mg,
+        key="estado_descoberta",
+    )
+    estado_busca = opcoes_estado[estado_label]
+    uf_busca = estado_busca["sigla"]
+    escopo_busca = st.radio(
+        "Escopo",
+        ["Região", "Cidade", "Estado inteiro"],
+        horizontal=True,
+        key="escopo_descoberta",
+    )
+
+    cidades_busca = []
+    if erro_localidades:
+        st.warning(erro_localidades)
+
+    try:
+        if escopo_busca == "Região":
+            regioes = listar_regioes_imediatas_ibge(uf_busca)
+            opcoes_regiao = {
+                regiao["nome"]: regiao
+                for regiao in regioes
+            }
+            labels_regiao = list(opcoes_regiao)
+            indice_ipatinga = next(
+                (
+                    indice
+                    for indice, nome in enumerate(labels_regiao)
+                    if normalizar_texto(nome) == "ipatinga"
+                ),
+                0,
+            )
+            regiao_label = st.selectbox(
+                "Região Geográfica Imediata",
+                labels_regiao,
+                index=indice_ipatinga,
+                key="regiao_descoberta",
+            )
+            municipios_regiao = listar_municipios_regiao_ibge(
+                opcoes_regiao[regiao_label]["id"]
+            )
+            padrao_vale_aco = [
+                cidade
+                for cidade in municipios_regiao
+                if normalizar_texto(cidade)
+                in {
+                    "ipatinga",
+                    "timoteo",
+                    "coronel fabriciano",
+                    "santana do paraiso",
+                }
+            ]
+            cidades_busca = st.multiselect(
+                "Cidades incluídas na busca",
+                municipios_regiao,
+                default=padrao_vale_aco or municipios_regiao[:8],
+                key="cidades_regiao_descoberta",
+            )
+            if len(cidades_busca) > 12:
+                st.info(
+                    "Para controlar tempo e uso de rede, serão pesquisadas as "
+                    "12 primeiras cidades selecionadas nesta execução."
+                )
+                cidades_busca = cidades_busca[:12]
+        elif escopo_busca == "Cidade":
+            municipios_estado = listar_municipios_estado_ibge(uf_busca)
+            indice_ipatinga = next(
+                (
+                    indice
+                    for indice, nome in enumerate(municipios_estado)
+                    if normalizar_texto(nome) == "ipatinga"
+                ),
+                0,
+            )
+            cidade_busca = st.selectbox(
+                "Cidade",
+                municipios_estado,
+                index=indice_ipatinga,
+                key="cidade_descoberta",
+            )
+            cidades_busca = [cidade_busca]
+        else:
+            st.info(
+                "A busca estadual encontra candidatos, mas não presume a cidade "
+                "atendida. Eles ficam em quarentena até essa informação ser confirmada."
+            )
+    except Exception as exc:
+        st.error(f"Não foi possível carregar regiões e cidades do IBGE: {exc}")
+        cidade_manual = st.text_input(
+            "Digite uma cidade para continuar",
+            key="cidade_manual_descoberta",
+        )
+        cidades_busca = [cidade_manual.strip()] if cidade_manual.strip() else []
+
+    pode_buscar = escopo_busca == "Estado inteiro" or bool(cidades_busca)
+    if st.button(
+        "Buscar, inspecionar e cadastrar sites",
+        key="descobrir_imobiliarias",
+        use_container_width=True,
+        disabled=not pode_buscar,
+    ):
         with st.spinner("Procurando e validando imobiliárias da região..."):
-            candidatos = descobrir_urls_vale_aco()
+            if escopo_busca == "Estado inteiro":
+                candidatos = descobrir_urls_estado(
+                    uf_busca,
+                    estado_busca["nome"],
+                    limite=10,
+                )
+            else:
+                candidatos = descobrir_urls_regiao(
+                    cidades_busca,
+                    limite=10,
+                    uf=uf_busca,
+                )
             config_path = Path(__file__).parent / "sites_config.yaml"
             config_atual = yaml.safe_load(config_path.read_text(encoding="utf-8"))
             dominios_existentes = {urlparse(site["base_url"]).netloc.removeprefix("www.") for site in config_atual["sites"].values()}
-            adicionadas, ignoradas, relatorio = [], [], []
+            adicionadas, ignoradas, quarentena, relatorio = [], [], [], []
             for candidato in candidatos:
-                host = urlparse(candidato["url"]).netloc.removeprefix("www.")
+                host = candidato.get("dominio") or urlparse(candidato["url"]).netloc.removeprefix("www.")
                 if host in dominios_existentes:
                     ignoradas.append(host)
-                    relatorio.append({"site": host, "resultado": "Já cadastrado"})
+                    relatorio.append({
+                        "site": host,
+                        "descoberta": candidato.get("score", 0),
+                        "qualidade": "",
+                        "resultado": "Já cadastrado",
+                    })
                     continue
                 deteccao = inspecionar_url(candidato["url"])
                 essenciais = {"card", "link", "preco"}
                 if deteccao.get("erro"):
                     ignoradas.append(host)
-                    relatorio.append({"site": host, "resultado": deteccao["erro"]})
+                    motivo = deteccao["erro"]
+                    quarentena.append({
+                        **candidato,
+                        "motivo": motivo,
+                        "confianca_detector": 0,
+                        "qualidade_extracao": 0,
+                    })
+                    relatorio.append({
+                        "site": host,
+                        "descoberta": candidato.get("score", 0),
+                        "qualidade": "0%",
+                        "resultado": "Quarentena: " + motivo,
+                    })
                     continue
-                if deteccao.get("confianca", 0) < 0.45 or not essenciais.issubset(deteccao.get("seletores", {})):
+
+                confianca_detector = deteccao.get("confianca", 0)
+                qualidade_extracao = deteccao.get("qualidade_extracao", 0)
+                score_descoberta = candidato.get("score", 0) / 100
+                score_geral = (
+                    score_descoberta * 0.35
+                    + confianca_detector * 0.25
+                    + qualidade_extracao * 0.40
+                )
+                seletores = deteccao.get("seletores", {})
+                tem_conteudo_card = {"titulo", "thumbnail"}.intersection(seletores)
+                cidade_confirmada = bool(candidato.get("municipio", "").strip())
+                publicavel = bool(
+                    deteccao.get("publicavel")
+                    and essenciais.issubset(seletores)
+                    and tem_conteudo_card
+                    and cidade_confirmada
+                    and score_geral >= 0.65
+                )
+                if not publicavel:
                     ignoradas.append(host)
-                    relatorio.append({"site": host, "resultado": "Seletores essenciais não foram identificados"})
+                    motivos = deteccao.get("motivos_validacao", [])
+                    if not essenciais.issubset(seletores):
+                        motivos.append("Seletores essenciais não foram identificados.")
+                    if not tem_conteudo_card:
+                        motivos.append("Card sem título e sem imagem confiável.")
+                    if not cidade_confirmada:
+                        motivos.append(
+                            "A busca estadual não confirmou a cidade atendida."
+                        )
+                    if score_geral < 0.65:
+                        motivos.append(f"Pontuação combinada insuficiente ({score_geral:.0%}).")
+                    motivo = " ".join(dict.fromkeys(motivos)) or "Validação automática inconclusiva."
+                    quarentena.append({
+                        **candidato,
+                        "motivo": motivo,
+                        "confianca_detector": confianca_detector,
+                        "qualidade_extracao": qualidade_extracao,
+                    })
+                    relatorio.append({
+                        "site": host,
+                        "descoberta": candidato.get("score", 0),
+                        "qualidade": f"{qualidade_extracao:.0%}",
+                        "resultado": "Quarentena: " + motivo,
+                    })
                     continue
                 chave = unicodedata.normalize("NFKD", host.split(".")[0]).encode("ascii", "ignore").decode().lower()
                 chave = re.sub(r"[^a-z0-9]+", "_", chave).strip("_") or "nova_imobiliaria"
@@ -719,26 +922,39 @@ def renderizar_administracao():
                     numero += 1
                 url_final = deteccao["url"]
                 config_atual["sites"][chave] = {
-                    "nome": host,
+                    "nome": candidato.get("nome_detectado") or host,
                     "logo": "",
-                    "base_url": f"{urlparse(url_final).scheme}://{urlparse(url_final).netloc}",
+                    "base_url": candidato.get("base_url") or f"{urlparse(url_final).scheme}://{urlparse(url_final).netloc}",
                     "listagem_url": url_final,
                     "cidade_padrao": candidato["municipio"],
+                    "finalidade": "aluguel",
                     "espera_seletor": deteccao["seletores"]["card"],
                     "paginacao": {"tipo": "nenhuma"},
                     "seletores": deteccao["seletores"],
                 }
                 dominios_existentes.add(host)
                 adicionadas.append(chave)
-                relatorio.append({"site": host, "resultado": f"Adicionado como {chave}"})
+                relatorio.append({
+                    "site": host,
+                    "descoberta": candidato.get("score", 0),
+                    "qualidade": f"{qualidade_extracao:.0%}",
+                    "resultado": f"Adicionado como {chave}",
+                })
             if adicionadas:
                 config_path.write_text(yaml.safe_dump(config_atual, allow_unicode=True, sort_keys=False), encoding="utf-8")
                 for chave in adicionadas:
                     rodar_site_agora_async(chave).join()
+            if quarentena:
+                registrar_quarentena(quarentena)
         if adicionadas:
             st.success(f"Imobiliárias adicionadas e coletadas: {', '.join(adicionadas)}.")
         else:
             st.info("Nenhum site novo passou pela validação automática nesta execução.")
+        if quarentena:
+            st.warning(
+                f"{len(quarentena)} candidato(s) foram preservados em "
+                "`data/imobiliarias_quarentena.csv` para revisão."
+            )
         if ignoradas:
             st.caption("Ignorados (já cadastrados ou sem confiança suficiente): " + ", ".join(ignoradas))
         if relatorio:
