@@ -1536,6 +1536,7 @@ st.markdown(
     [data-testid="stSelectbox"] div[data-baseweb="select"],
     [data-testid="stMultiSelect"] div[data-baseweb="select"] {
         box-sizing: border-box;
+        min-height: 40px;
         padding: 2px !important;
         background: linear-gradient(110deg, #07534b 0%, #168072 48%, #f1c45b 100%) !important;
         border: 0 !important;
@@ -1543,7 +1544,8 @@ st.markdown(
     }
     [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
     [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
-        min-height: calc(100% - 4px);
+        min-height: 36px;
+        align-items: center;
         background: #f3f7f5 !important;
         border: 0 !important;
         border-radius: .58rem !important;
