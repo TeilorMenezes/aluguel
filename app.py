@@ -1478,6 +1478,38 @@ st.markdown(
     }
     .mv-footer .mv-brand { color: white !important; }
     .mv-footer p { margin: .8rem 0 0; font-size: .76rem; }
+    .mv-footer-meta {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .mv-instagram-link {
+        width: 2.75rem;
+        height: 2.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: white !important;
+        background: rgba(255,255,255,.08);
+        border: 1px solid rgba(255,255,255,.14);
+        border-radius: .85rem;
+        text-decoration: none !important;
+        transition: transform .18s ease, background .18s ease, border-color .18s ease;
+    }
+    .mv-instagram-link:hover {
+        color: #092f2c !important;
+        background: #f1c45b;
+        border-color: #f1c45b;
+        transform: translateY(-2px);
+    }
+    .mv-instagram-link:focus-visible {
+        outline: 3px solid #f1c45b;
+        outline-offset: 3px;
+    }
+    .mv-instagram-link svg {
+        width: 1.35rem;
+        height: 1.35rem;
+    }
     .mv-results-hero {
         margin: 0 calc(50% - 50vw);
         padding: 3.8rem max(1rem, calc((100vw - 1180px) / 2)) 5rem;
@@ -1676,6 +1708,7 @@ st.markdown(
         .mv-showcase-head,
         .mv-result-summary,
         .mv-footer-row { display: block; }
+        .mv-footer-meta { margin-top: 1.5rem; }
         .mv-showcase-lead { margin-top: 1.2rem; }
         .mv-preview-card { max-width: 32rem; margin-inline: auto; }
         .mv-generic-card:first-child {
@@ -1749,7 +1782,23 @@ def renderizar_footer_v2():
                     </a>
                     <p>Um jeito simples de encontrar imóveis para alugar nas regiões atendidas.</p>
                 </div>
-                <p>© 2026 Mapa do Aluguel</p>
+                <div class="mv-footer-meta">
+                    <a
+                        class="mv-instagram-link"
+                        href="https://www.instagram.com/mapadoaluguel/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Siga o Mapa do Aluguel no Instagram"
+                        title="Instagram do Mapa do Aluguel"
+                    >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
+                            <rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" stroke-width="2"></rect>
+                            <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2"></circle>
+                            <circle cx="17.4" cy="6.7" r="1.1" fill="currentColor"></circle>
+                        </svg>
+                    </a>
+                    <p>© 2026 Mapa do Aluguel</p>
+                </div>
             </div>
         </footer>
         """,
