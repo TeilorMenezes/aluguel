@@ -1,11 +1,13 @@
 import unittest
 
 from descobrir_sites import (
+    _coletar_links_busca,
     avaliar_pagina_imobiliaria,
     dominio,
     pontuar,
     url_canonica,
 )
+from bs4 import BeautifulSoup
 from detector import avaliar_extracao, detectar_seletores
 
 
@@ -40,6 +42,18 @@ class DescobertaSitesTest(unittest.TestCase):
             "https://exemplo.com.br/aluguel?pagina=2",
         )
 
+    def test_extrai_destino_de_redirecionamento_yahoo(self):
+        from descobrir_sites import url_resultado
+
+        redirecionamento = (
+            "https://r.search.yahoo.com/x/RU=https%3A%2F%2F"
+            "exemplo.com.br%2Faluguel/RK=2/RS=abc"
+        )
+        self.assertEqual(
+            url_resultado(redirecionamento),
+            "https://exemplo.com.br/aluguel",
+        )
+
     def test_portais_nacionais_sao_excluidos(self):
         self.assertLess(
             pontuar(
@@ -48,6 +62,37 @@ class DescobertaSitesTest(unittest.TestCase):
                 municipio="Ipatinga",
             ),
             0,
+        )
+
+    def test_extrai_resultados_da_busca_e_remove_portais(self):
+        soup = BeautifulSoup(
+            """
+            <div class="snippet">
+              <a href="https://exemploimoveis.com.br/aluguel">
+                Exemplo Imóveis em Ipatinga
+              </a>
+            </div>
+            <div class="snippet">
+              <a href="https://www.vivareal.com.br/aluguel/ipatinga/">
+                Portal nacional
+              </a>
+            </div>
+            """,
+            "html.parser",
+        )
+        resultados = _coletar_links_busca(
+            soup,
+            ("div.snippet a[href]",),
+            limite=10,
+        )
+        self.assertEqual(
+            resultados,
+            [
+                (
+                    "https://exemploimoveis.com.br/aluguel",
+                    "Exemplo Imóveis em Ipatinga",
+                )
+            ],
         )
 
     def test_site_local_recebe_sinais_positivos(self):
