@@ -8,6 +8,7 @@ import threading
 import yaml
 from pathlib import Path
 
+import db
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -18,6 +19,7 @@ CONFIG_PATH = Path(__file__).parent / "sites_config.yaml"
 
 _lock = threading.Lock()
 _scheduler = None
+_coleta_inicial_iniciada = False
 
 
 def _job_varredura():
@@ -72,6 +74,28 @@ def rodar_site_agora_async(site_key: str):
     def job():
         with _lock:
             rodar_varredura(sites_filtrados=[site_key], headless=True)
+
+    thread = threading.Thread(target=job, daemon=True)
+    thread.start()
+    return thread
+
+
+def coletar_sites_sem_dados_async():
+    """Coleta uma vez, em segundo plano, integrações novas após um deploy."""
+    global _coleta_inicial_iniciada
+    if _coleta_inicial_iniciada:
+        return None
+    _coleta_inicial_iniciada = True
+
+    cfg = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
+    configurados = set((cfg.get("sites") or {}).keys())
+    faltantes = sorted(configurados - db.listar_sites_com_imoveis())
+    if not faltantes:
+        return None
+
+    def job():
+        with _lock:
+            rodar_varredura(sites_filtrados=faltantes, headless=True)
 
     thread = threading.Thread(target=job, daemon=True)
     thread.start()

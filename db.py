@@ -149,6 +149,15 @@ def remover_ausentes(site_key: str, urls_ativas: list):
         )
 
 
+def listar_sites_com_imoveis():
+    """Retorna as integrações que já possuem ao menos um imóvel coletado."""
+    with get_conn() as conn:
+        linhas = conn.execute(
+            "SELECT DISTINCT site_key FROM imoveis WHERE site_key IS NOT NULL"
+        ).fetchall()
+    return {linha["site_key"] for linha in linhas}
+
+
 def _filtros_imoveis(preco_min=None, preco_max=None, bairros=None, cidades=None, tipos=None, imobiliarias=None):
     query = " FROM imoveis WHERE 1=1"
     params = []
