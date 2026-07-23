@@ -129,6 +129,65 @@ class DescobertaSitesTest(unittest.TestCase):
         self.assertGreaterEqual(validacao["taxas_campos"]["link"], 0.9)
         self.assertGreaterEqual(validacao["taxas_campos"]["preco"], 0.9)
 
+    def test_detector_nao_confunde_quartos_com_preco(self):
+        html = """
+        <section>
+          <article class="imovelcard">
+            <a class="foto" href="/imovel/1"><img src="/1.jpg"></a>
+            <h2 class="status">Locação</h2>
+            <div class="feature">2 Dormitórios</div>
+            <p class="valor">R$ 1.200</p>
+          </article>
+          <article class="imovelcard">
+            <a class="foto" href="/imovel/2"><img src="/2.jpg"></a>
+            <h2 class="status">Locação</h2>
+            <div class="feature">3 Dormitórios</div>
+            <p class="valor">R$ 1.800</p>
+          </article>
+          <article class="imovelcard">
+            <a class="foto" href="/imovel/3"><img src="/3.jpg"></a>
+            <h2 class="status">Locação</h2>
+            <div class="feature">1 Dormitório</div>
+            <p class="valor">R$ 900</p>
+          </article>
+        </section>
+        """
+        resultado = detectar_seletores(html)
+        self.assertEqual(resultado["seletores"]["preco"], "p.valor")
+        self.assertEqual(resultado["seletores"]["thumbnail"], "img")
+
+    def test_estoque_pequeno_com_dois_anuncios_validos_e_publicavel(self):
+        html = """
+        <main>
+          <article class="card">
+            <a class="link" href="/imovel/1">
+              <img src="/1.jpg"><h2>Apartamento para locação</h2>
+            </a>
+            <p class="preco">R$ 1.200</p>
+          </article>
+          <article class="card">
+            <a class="link" href="/imovel/2">
+              <img src="/2.jpg"><h2>Casa para locação</h2>
+            </a>
+            <p class="preco">R$ 1.800</p>
+          </article>
+          <article class="card"><p>Consulte outros imóveis</p></article>
+        </main>
+        """
+        validacao = avaliar_extracao(
+            html,
+            {
+                "card": "article.card",
+                "link": "a.link",
+                "titulo": "h2",
+                "preco": "p.preco",
+                "thumbnail": "img",
+            },
+            "https://exemplo.com.br/locacao",
+        )
+        self.assertTrue(validacao["publicavel"])
+        self.assertEqual(validacao["taxas_campos"]["links_unicos"], 2)
+
     def test_pagina_exclusiva_de_venda_nao_e_publicavel(self):
         html = html_listagem(finalidade="venda")
         deteccao = detectar_seletores(html)
