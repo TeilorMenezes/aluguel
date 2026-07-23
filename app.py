@@ -1500,22 +1500,38 @@ st.markdown(
         border-radius: 1.1rem;
         box-shadow: 0 1.3rem 3.4rem rgba(26,62,52,.1);
     }
-    .st-key-mv_v2_search [data-baseweb="select"] > div,
-    .st-key-mv_filter_shell [data-baseweb="select"] > div {
-        background:
-            linear-gradient(#f8fbf9, #f8fbf9) padding-box,
-            linear-gradient(110deg, #0b4f49, #2f786e 48%, #f1c45b) border-box !important;
-        border: 1.5px solid transparent !important;
+    .st-key-mv_v2_search [data-testid="stSelectbox"] [data-baseweb="select"],
+    .st-key-mv_filter_shell [data-testid="stSelectbox"] [data-baseweb="select"],
+    .st-key-mv_filter_shell [data-testid="stMultiSelect"] [data-baseweb="select"] {
+        padding: 1.5px;
+        background: linear-gradient(110deg, #0b4f49, #2f786e 48%, #f1c45b) !important;
         border-radius: .65rem !important;
         transition: box-shadow .2s ease, background .2s ease;
+    }
+    .st-key-mv_v2_search [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+    .st-key-mv_filter_shell [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+    .st-key-mv_filter_shell [data-testid="stMultiSelect"] [data-baseweb="select"] > div {
+        background: #f8fbf9 !important;
+        border: 0 !important;
+        border-radius: calc(.65rem - 1.5px) !important;
     }
     .st-key-mv_v2_search [data-testid="stSelectbox"]:focus-within [data-baseweb="select"] > div,
     .st-key-mv_filter_shell [data-testid="stSelectbox"]:focus-within [data-baseweb="select"] > div,
     .st-key-mv_filter_shell [data-testid="stMultiSelect"]:focus-within [data-baseweb="select"] > div {
+        background: white !important;
+    }
+    .st-key-mv_v2_search [data-testid="stSelectbox"]:focus-within [data-baseweb="select"],
+    .st-key-mv_filter_shell [data-testid="stSelectbox"]:focus-within [data-baseweb="select"],
+    .st-key-mv_filter_shell [data-testid="stMultiSelect"]:focus-within [data-baseweb="select"] {
+        box-shadow: 0 0 0 .22rem rgba(241,196,91,.14) !important;
+    }
+    .st-key-mv_filter_shell [data-testid="stSlider"] {
+        padding: .7rem .85rem .45rem;
         background:
             linear-gradient(white, white) padding-box,
-            linear-gradient(110deg, #0b4f49, #f1c45b) border-box !important;
-        box-shadow: 0 0 0 .22rem rgba(241,196,91,.14) !important;
+            linear-gradient(110deg, #0b4f49, #2f786e 48%, #f1c45b) border-box;
+        border: 1.5px solid transparent;
+        border-radius: .65rem;
     }
     .mv-result-summary {
         display: flex;
