@@ -20,18 +20,26 @@ CONFIG_PATH = Path(__file__).parent / "sites_config.yaml"
 _lock = threading.Lock()
 _scheduler = None
 _coleta_inicial_iniciada = False
+_max_workers = 1
+_max_tentativas = 3
 
 
 def _job_varredura():
     with _lock:  # evita rodar duas varreduras ao mesmo tempo
-        rodar_varredura(headless=True)
+        rodar_varredura(
+            headless=True,
+            max_workers=_max_workers,
+            max_tentativas=_max_tentativas,
+        )
 
 
-def iniciar_agendador():
+def iniciar_agendador(max_workers=1, max_tentativas=3):
     """Cria (uma única vez) o BackgroundScheduler com os dois gatilhos.
     Chame isso uma vez ao iniciar a aplicação (app.py cuida disso via
     st.cache_resource, então isso não duplica jobs em cada rerun)."""
-    global _scheduler
+    global _scheduler, _max_workers, _max_tentativas
+    _max_workers = max(1, min(int(max_workers or 1), 4))
+    _max_tentativas = max(1, min(int(max_tentativas or 1), 5))
     if _scheduler is not None:
         return _scheduler
 
@@ -73,7 +81,12 @@ def rodar_site_agora_async(site_key: str):
     """Executa em segundo plano somente uma imobiliária recém-cadastrada."""
     def job():
         with _lock:
-            rodar_varredura(sites_filtrados=[site_key], headless=True)
+            rodar_varredura(
+                sites_filtrados=[site_key],
+                headless=True,
+                max_workers=1,
+                max_tentativas=_max_tentativas,
+            )
 
     thread = threading.Thread(target=job, daemon=True)
     thread.start()
@@ -95,7 +108,12 @@ def coletar_sites_sem_dados_async():
 
     def job():
         with _lock:
-            rodar_varredura(sites_filtrados=faltantes, headless=True)
+            rodar_varredura(
+                sites_filtrados=faltantes,
+                headless=True,
+                max_workers=_max_workers,
+                max_tentativas=_max_tentativas,
+            )
 
     thread = threading.Thread(target=job, daemon=True)
     thread.start()

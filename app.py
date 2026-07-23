@@ -4,6 +4,7 @@ import hmac
 import html
 import re
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -61,7 +62,11 @@ garantir_chromium_instalado()
 
 db.init_db()
 db.remover_duplicata_diferencial()
-iniciar_agendador()  # cacheado via variável de módulo (só cria os jobs uma vez)
+ROBO_LOCAL_ATIVO = diagnosticar_publicacao()["disponivel"]
+iniciar_agendador(
+    max_workers=2 if ROBO_LOCAL_ATIVO else 1,
+    max_tentativas=3,
+)  # cacheado por processo
 coletar_sites_sem_dados_async()
 
 # -----------------------------------------------------------------------
@@ -653,11 +658,43 @@ def _renderizar_operacoes_admin():
     """Ações que só podem ser exibidas após autenticação administrativa."""
     st.subheader("🔒 Administração")
     st.caption("As alterações de configuração e a atualização manual ficam restritas a administradores.")
+    if ROBO_LOCAL_ATIVO:
+        st.success(
+            "Robô local ativo: 2 navegadores simultâneos e até 3 tentativas por site."
+        )
 
     if st.button("🔄 Atualizar agora", key="atualizar_agora", use_container_width=True):
-        with st.spinner("Buscando imóveis nos sites configurados..."):
-            rodar_agora_async().join()
-        st.success("Atualizado!")
+        if ROBO_LOCAL_ATIVO:
+            rodar_agora_async()
+            st.success(
+                "Robô iniciado em segundo plano. Use “Atualizar andamento” "
+                "para acompanhar cada imobiliária."
+            )
+        else:
+            with st.spinner("Buscando imóveis nos sites configurados..."):
+                rodar_agora_async().join()
+            st.success("Atualizado!")
+
+    if ROBO_LOCAL_ATIVO:
+        if st.button("Atualizar andamento", key="status_robo_local"):
+            st.rerun()
+        status_sites = db.listar_status_sites()
+        if status_sites:
+            st.dataframe(
+                [
+                    {
+                        "Imobiliária": item["site_key"],
+                        "Status": item["status"],
+                        "Tentativas": item["tentativas"],
+                        "Imóveis": item["imoveis_coletados"],
+                        "Finalizado": item["finalizado_em"] or "",
+                        "Erro": item["erro"] or "",
+                    }
+                    for item in status_sites
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
 
     st.divider()
     st.subheader("Adicionar imobiliária por URL")
@@ -785,15 +822,20 @@ def _renderizar_operacoes_admin():
             cidades_busca = st.multiselect(
                 "Cidades incluídas na busca",
                 municipios_regiao,
-                default=padrao_vale_aco or municipios_regiao[:8],
+                default=(
+                    municipios_regiao
+                    if ROBO_LOCAL_ATIVO
+                    else padrao_vale_aco or municipios_regiao[:8]
+                ),
                 key="cidades_regiao_descoberta",
             )
-            if len(cidades_busca) > 12:
+            limite_cidades = 30 if ROBO_LOCAL_ATIVO else 12
+            if len(cidades_busca) > limite_cidades:
                 st.info(
                     "Para controlar tempo e uso de rede, serão pesquisadas as "
-                    "12 primeiras cidades selecionadas nesta execução."
+                    f"{limite_cidades} primeiras cidades selecionadas nesta execução."
                 )
-                cidades_busca = cidades_busca[:12]
+                cidades_busca = cidades_busca[:limite_cidades]
         elif escopo_busca == "Cidade":
             municipios_estado = listar_municipios_estado_ibge(uf_busca)
             indice_ipatinga = next(
@@ -832,22 +874,48 @@ def _renderizar_operacoes_admin():
         disabled=not pode_buscar,
     ):
         with st.spinner("Procurando e validando imobiliárias da região..."):
+            limite_candidatos = 20 if ROBO_LOCAL_ATIVO else 10
             if escopo_busca == "Estado inteiro":
                 candidatos = descobrir_urls_estado(
                     uf_busca,
                     estado_busca["nome"],
-                    limite=10,
+                    limite=limite_candidatos,
                 )
             else:
                 candidatos = descobrir_urls_regiao(
                     cidades_busca,
-                    limite=10,
+                    limite=limite_candidatos,
                     uf=uf_busca,
                 )
             config_path = Path(__file__).parent / "sites_config.yaml"
             config_atual = yaml.safe_load(config_path.read_text(encoding="utf-8"))
             dominios_existentes = {urlparse(site["base_url"]).netloc.removeprefix("www.") for site in config_atual["sites"].values()}
             adicionadas, ignoradas, quarentena, relatorio = [], [], [], []
+            deteccoes_locais = {}
+            if ROBO_LOCAL_ATIVO:
+                para_inspecionar = {}
+                for candidato in candidatos:
+                    host_candidato = candidato.get("dominio") or urlparse(
+                        candidato["url"]
+                    ).netloc.removeprefix("www.")
+                    if host_candidato not in dominios_existentes:
+                        para_inspecionar[host_candidato] = candidato["url"]
+                with ThreadPoolExecutor(
+                    max_workers=2,
+                    thread_name_prefix="validacao-imobiliarias",
+                ) as executor:
+                    futuros = {
+                        executor.submit(inspecionar_url, url): host
+                        for host, url in para_inspecionar.items()
+                    }
+                    for futuro in as_completed(futuros):
+                        host_candidato = futuros[futuro]
+                        try:
+                            deteccoes_locais[host_candidato] = futuro.result()
+                        except Exception as exc:
+                            deteccoes_locais[host_candidato] = {
+                                "erro": f"Falha na inspeção local: {exc}"
+                            }
             if not candidatos:
                 relatorio.append({
                     "site": "Busca pública",
@@ -869,7 +937,9 @@ def _renderizar_operacoes_admin():
                         "resultado": "Já cadastrado",
                     })
                     continue
-                deteccao = inspecionar_url(candidato["url"])
+                deteccao = deteccoes_locais.get(host) or inspecionar_url(
+                    candidato["url"]
+                )
                 essenciais = {"card", "link", "preco"}
                 if deteccao.get("erro"):
                     ignoradas.append(host)

@@ -10,6 +10,7 @@ Suporta dois tipos de paginação, configurados por site:
 """
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote, urljoin, urlparse, urlsplit, urlunsplit
@@ -534,23 +535,81 @@ def _raspar_site(playwright, cfg_site: dict, headless=True):
     return itens
 
 
-def rodar_varredura(sites_filtrados=None, headless=True):
+def _raspar_site_com_retentativa(
+    site_key,
+    cfg_site,
+    headless=True,
+    max_tentativas=3,
+):
+    ultimo_erro = None
+    for tentativa in range(1, max(1, max_tentativas) + 1):
+        db.registrar_status_site(
+            site_key,
+            "executando",
+            tentativas=tentativa,
+        )
+        try:
+            with sync_playwright() as playwright:
+                itens = _raspar_site(playwright, cfg_site, headless=headless)
+            return site_key, cfg_site, itens, tentativa, None
+        except Exception as exc:
+            ultimo_erro = str(exc)
+            if tentativa < max_tentativas:
+                time.sleep(min(12, 2 ** tentativa))
+    return site_key, cfg_site, [], max_tentativas, ultimo_erro
+
+
+def rodar_varredura(
+    sites_filtrados=None,
+    headless=True,
+    max_workers=1,
+    max_tentativas=3,
+):
     """Executa a varredura para todos os sites configurados (ou um
     subconjunto, se sites_filtrados for passado). Salva no banco e
     geocodifica bairros novos."""
     db.init_db()
     cfg = carregar_config()
     total_coletado = 0
-    erro_geral = None
+    erros = []
+    selecionados = [
+        (site_key, cfg_site)
+        for site_key, cfg_site in cfg["sites"].items()
+        if not sites_filtrados or site_key in sites_filtrados
+    ]
+    trabalhadores = max(1, min(int(max_workers or 1), 4, len(selecionados) or 1))
 
-    with sync_playwright() as p:
-        for site_key, cfg_site in cfg["sites"].items():
-            if sites_filtrados and site_key not in sites_filtrados:
-                continue
+    with ThreadPoolExecutor(
+        max_workers=trabalhadores,
+        thread_name_prefix="coleta-imoveis",
+    ) as executor:
+        futuros = {
+            executor.submit(
+                _raspar_site_com_retentativa,
+                site_key,
+                cfg_site,
+                headless,
+                max_tentativas,
+            ): site_key
+            for site_key, cfg_site in selecionados
+        }
+        for futuro in as_completed(futuros):
             try:
-                itens_brutos = _raspar_site(p, cfg_site, headless=headless)
-            except Exception as e:
-                erro_geral = f"{site_key}: {e}"
+                site_key, cfg_site, itens_brutos, tentativas, erro = futuro.result()
+            except Exception as exc:
+                site_key = futuros[futuro]
+                erro = str(exc)
+                erros.append(f"{site_key}: {erro}")
+                db.registrar_status_site(site_key, "erro", erro=erro)
+                continue
+            if erro:
+                erros.append(f"{site_key}: {erro}")
+                db.registrar_status_site(
+                    site_key,
+                    "erro",
+                    tentativas=tentativas,
+                    erro=erro,
+                )
                 continue
 
             urls_ativas = []
@@ -580,7 +639,14 @@ def rodar_varredura(sites_filtrados=None, headless=True):
                 total_coletado += 1
 
             db.remover_ausentes(site_key, urls_ativas)
+            db.registrar_status_site(
+                site_key,
+                "concluido",
+                tentativas=tentativas,
+                imoveis_coletados=len(urls_ativas),
+            )
 
+    erro_geral = " | ".join(erros) if erros else None
     db.registrar_execucao("varredura", total_coletado, erro_geral)
     return total_coletado, erro_geral
 
