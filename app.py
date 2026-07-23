@@ -1275,6 +1275,10 @@ st.markdown(
         left: 50%;
         background: #c7bbaa;
     }
+    .mv-property-art.has-image::before,
+    .mv-property-art.has-image::after {
+        display: none;
+    }
     .mv-property-art.house::before {
         width: 58%;
         height: 45%;
@@ -2055,10 +2059,11 @@ def renderizar_resultados_v2():
                         f"background-image:url('{thumb}');background-size:cover;background-position:center;"
                         if thumb else ""
                     )
+                    classe_imagem = " has-image" if thumb else ""
                     st.markdown(
                         f"""
                         <article class="mv-result-card">
-                            <div class="mv-property-art" style="{imagem_style}">
+                            <div class="mv-property-art{classe_imagem}" style="{imagem_style}">
                                 <span class="mv-property-badge">{tipo_item}</span>
                             </div>
                             <div class="mv-result-body">
