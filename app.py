@@ -23,7 +23,9 @@ from descobrir_sites import (
     listar_municipios_estado_ibge,
     listar_municipios_regiao_ibge,
     listar_regioes_imediatas_ibge,
+    listar_quarentena,
     normalizar_texto,
+    remover_da_quarentena,
     registrar_quarentena,
 )
 from scheduler_runner import iniciar_agendador, rodar_agora_async, rodar_site_agora_async
@@ -640,7 +642,7 @@ div[data-testid="stForm"] button[kind="primaryFormSubmit"] {
 """, unsafe_allow_html=True)
 
 
-def renderizar_administracao():
+def _renderizar_operacoes_admin():
     """Ações que só podem ser exibidas após autenticação administrativa."""
     st.subheader("🔒 Administração")
     st.caption("As alterações de configuração e a atualização manual ficam restritas a administradores.")
@@ -1012,6 +1014,191 @@ def renderizar_administracao():
                 config_path.write_text(yaml.safe_dump(config_atual, allow_unicode=True, sort_keys=False), encoding="utf-8")
                 salvar_padrao(resultado_detector["plataforma"], campos_aprendizagem)
                 st.success("Correção salva. As próximas detecções dessa plataforma usarão esse aprendizado.")
+
+def _chave_site_disponivel(host, sites):
+    chave = unicodedata.normalize("NFKD", host.split(".")[0]).encode("ascii", "ignore").decode().lower()
+    chave = re.sub(r"[^a-z0-9]+", "_", chave).strip("_") or "nova_imobiliaria"
+    chave_base, numero = chave, 2
+    while chave in sites:
+        chave = f"{chave_base}_{numero}"
+        numero += 1
+    return chave
+
+
+def _renderizar_quarentena_admin():
+    st.subheader("Quarentena")
+    st.caption(
+        "Sites reprovados automaticamente ficam aqui para correção. "
+        "Eles não aparecem para os visitantes enquanto não forem aprovados."
+    )
+    linhas = listar_quarentena()
+    if not linhas:
+        st.info("A quarentena está vazia.")
+        return
+
+    st.dataframe(
+        [
+            {
+                "Site": linha.get("dominio", ""),
+                "Cidade": linha.get("municipio", ""),
+                "Descoberta": linha.get("score_descoberta", ""),
+                "Qualidade": linha.get("qualidade_extracao", ""),
+                "Motivo": linha.get("motivo", ""),
+                "Última verificação": linha.get("ultima_verificacao", ""),
+            }
+            for linha in linhas
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    opcoes = {
+        f"{linha.get('nome') or linha['dominio']} — {linha['dominio']}": linha
+        for linha in linhas
+    }
+    selecionado_label = st.selectbox(
+        "Candidato para revisar",
+        list(opcoes),
+        key="quarentena_candidato",
+    )
+    selecionado = opcoes[selecionado_label]
+
+    with st.form("revisar_quarentena"):
+        nome = st.text_input(
+            "Nome da imobiliária",
+            value=selecionado.get("nome", ""),
+        )
+        cidade = st.text_input(
+            "Cidade atendida",
+            value=selecionado.get("municipio", ""),
+        )
+        url = st.text_input(
+            "URL da listagem de aluguel",
+            value=selecionado.get("url", ""),
+        )
+        testar = st.form_submit_button("Testar novamente")
+        aprovar = st.form_submit_button("Aprovar e coletar")
+
+    if testar or aprovar:
+        if not url.strip():
+            st.error("Informe a URL da listagem de aluguel.")
+            return
+        if aprovar and not cidade.strip():
+            st.error("Informe a cidade antes de aprovar.")
+            return
+
+        with st.spinner("Inspecionando novamente os cards da imobiliária..."):
+            deteccao = inspecionar_url(url)
+        if deteccao.get("erro"):
+            registrar_quarentena([{
+                **selecionado,
+                "score": selecionado.get("score_descoberta", ""),
+                "nome": nome.strip(),
+                "municipio": cidade.strip(),
+                "url": url.strip(),
+                "motivo": deteccao["erro"],
+                "evidencias": [],
+                "confianca_detector": 0,
+                "qualidade_extracao": 0,
+            }])
+            st.error(deteccao["erro"])
+            return
+
+        seletores = deteccao.get("seletores", {})
+        essenciais_ausentes = {
+            campo for campo in ("card", "link", "preco")
+            if not seletores.get(campo)
+        }
+        motivos = list(deteccao.get("motivos_validacao", []))
+        if essenciais_ausentes:
+            motivos.append(
+                "Seletores ausentes: " + ", ".join(sorted(essenciais_ausentes)) + "."
+            )
+
+        if testar:
+            registrar_quarentena([{
+                **selecionado,
+                "score": selecionado.get("score_descoberta", ""),
+                "nome": nome.strip(),
+                "municipio": cidade.strip(),
+                "url": deteccao.get("url") or url.strip(),
+                "motivo": (
+                    "Pronto para aprovação manual."
+                    if not essenciais_ausentes
+                    else " ".join(motivos)
+                ),
+                "evidencias": [],
+                "confianca_detector": deteccao.get("confianca", 0),
+                "qualidade_extracao": deteccao.get("qualidade_extracao", 0),
+            }])
+            if essenciais_ausentes:
+                st.warning("O candidato continua em quarentena: " + " ".join(motivos))
+            else:
+                st.success(
+                    "Nova inspeção concluída. Os campos essenciais foram encontrados; "
+                    "revise os dados e use “Aprovar e coletar”."
+                )
+            return
+
+        if essenciais_ausentes:
+            st.error("Não é seguro aprovar este site: " + " ".join(motivos))
+            return
+
+        url_final = deteccao.get("url") or url.strip()
+        host = urlparse(url_final).netloc.lower().removeprefix("www.")
+        config_path = Path(__file__).parent / "sites_config.yaml"
+        config_atual = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        for chave_existente, site in config_atual["sites"].items():
+            host_existente = urlparse(site["base_url"]).netloc.lower().removeprefix("www.")
+            if host_existente == host:
+                remover_da_quarentena(host)
+                st.info(
+                    f"O site já estava cadastrado como “{chave_existente}”. "
+                    "Foi removido da quarentena."
+                )
+                return
+
+        chave = _chave_site_disponivel(host, config_atual["sites"])
+        config_atual["sites"][chave] = {
+            "nome": nome.strip() or host,
+            "logo": "",
+            "base_url": f"{urlparse(url_final).scheme}://{urlparse(url_final).netloc}",
+            "listagem_url": url_final,
+            "cidade_padrao": cidade.strip(),
+            "finalidade": "aluguel",
+            "espera_seletor": seletores["card"],
+            "paginacao": {"tipo": "nenhuma"},
+            "seletores": seletores,
+        }
+        config_path.write_text(
+            yaml.safe_dump(config_atual, allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+        )
+        remover_da_quarentena(host)
+        with st.spinner("Fazendo a primeira coleta..."):
+            rodar_site_agora_async(chave).join()
+        st.success(f"Imobiliária aprovada como “{chave}” e primeira coleta concluída.")
+
+    if st.button(
+        "Descartar candidato",
+        key=f"descartar_quarentena_{selecionado['dominio']}",
+        type="secondary",
+    ):
+        remover_da_quarentena(selecionado["dominio"])
+        st.success("Candidato descartado.")
+        st.rerun()
+
+
+def renderizar_administracao():
+    """Ações exibidas somente após autenticação administrativa."""
+    aba_operacoes, aba_quarentena = st.tabs(
+        ["Atualização e descoberta", "Quarentena"]
+    )
+    with aba_operacoes:
+        _renderizar_operacoes_admin()
+    with aba_quarentena:
+        _renderizar_quarentena_admin()
+
 
 def renderizar_landing(cidades):
     """Apresenta o produto e transforma a chamada principal em uma busca real."""

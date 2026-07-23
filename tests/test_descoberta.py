@@ -1,10 +1,15 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from descobrir_sites import (
     _coletar_links_busca,
     avaliar_pagina_imobiliaria,
     dominio,
+    listar_quarentena,
     pontuar,
+    registrar_quarentena,
+    remover_da_quarentena,
     url_canonica,
 )
 from bs4 import BeautifulSoup
@@ -94,6 +99,40 @@ class DescobertaSitesTest(unittest.TestCase):
                 )
             ],
         )
+
+    def test_quarentena_pode_ser_listada_atualizada_e_removida(self):
+        with TemporaryDirectory() as pasta:
+            caminho = Path(pasta) / "quarentena.csv"
+            registrar_quarentena(
+                [{
+                    "dominio": "exemplo.com.br",
+                    "nome": "Exemplo Imóveis",
+                    "municipio": "Ipatinga",
+                    "url": "https://exemplo.com.br/aluguel",
+                    "score": 55,
+                    "motivo": "Preço não identificado.",
+                    "evidencias": ["listagem de aluguel"],
+                }],
+                caminho,
+            )
+            linhas = listar_quarentena(caminho)
+            self.assertEqual(len(linhas), 1)
+            self.assertEqual(linhas[0]["municipio"], "Ipatinga")
+
+            registrar_quarentena(
+                [{
+                    **linhas[0],
+                    "score": 70,
+                    "motivo": "Pronto para aprovação manual.",
+                    "evidencias": ["preço identificado"],
+                }],
+                caminho,
+            )
+            atualizada = listar_quarentena(caminho)
+            self.assertEqual(atualizada[0]["motivo"], "Pronto para aprovação manual.")
+
+            remover_da_quarentena("https://www.exemplo.com.br/x", caminho)
+            self.assertEqual(listar_quarentena(caminho), [])
 
     def test_site_local_recebe_sinais_positivos(self):
         score = pontuar(
