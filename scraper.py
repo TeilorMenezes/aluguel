@@ -168,13 +168,23 @@ def _texto_preco_alternativo(card):
 
 def _titulo_alternativo(card, link_el):
     """Tenta headings, título do link e alt da imagem antes de usar texto genérico."""
-    for seletor in ("h1", "h2", "h3", "h4", "h5", "h6", "[class*='title']", "[class*='titulo']"):
-        texto = _texto(_selecionar(card, seletor))
-        if texto and not re.search(r"R\$\s*[\d\.]", texto, re.IGNORECASE):
-            return texto
     if link_el:
         texto = _texto(link_el) or link_el.get_attribute("title")
-        if texto and not re.search(r"R\$\s*[\d\.]", texto, re.IGNORECASE):
+        if (
+            texto
+            and len(texto.strip()) >= 8
+            and texto.strip().casefold() not in {"alugar", "aluguel", "locação", "locacao", "imóvel", "imovel"}
+            and not re.search(r"R\$\s*[\d\.]", texto, re.IGNORECASE)
+        ):
+            return texto
+    for seletor in ("h1", "h2", "h3", "h4", "h5", "h6", "[class*='title']", "[class*='titulo']"):
+        texto = _texto(_selecionar(card, seletor))
+        if (
+            texto
+            and len(texto.strip()) >= 8
+            and texto.strip().casefold() not in {"alugar", "aluguel", "locação", "locacao", "imóvel", "imovel"}
+            and not re.search(r"R\$\s*[\d\.]", texto, re.IGNORECASE)
+        ):
             return texto
     imagem = _selecionar(card, "img")
     return imagem.get_attribute("alt") if imagem else None

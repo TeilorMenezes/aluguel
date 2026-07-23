@@ -9,7 +9,16 @@ from playwright.sync_api import TimeoutError as PWTimeout, sync_playwright
 import yaml
 
 
-PRECO_RE = re.compile(r"(?:R\$\s*)?\d{1,3}(?:\.\d{3})*(?:,\d{2})|consultar", re.I)
+PRECO_RE = re.compile(
+    r"(?:R\$\s*\d[\d.\s]*(?:,\d{2})?|"
+    r"\d{1,3}(?:\.\d{3})+(?:,\d{2})?|consultar)",
+    re.I,
+)
+PRECO_FORTE_RE = re.compile(
+    r"(?:R\$\s*\d[\d.\s]*(?:,\d{2})?|consultar|"
+    r"\d{1,3}(?:\.\d{3})+(?:,\d{2})?)",
+    re.I,
+)
 ALUGUEL_RE = re.compile(r"\b(?:aluguel|alugar|loca(?:ç|c)[aã]o|locar)\b", re.I)
 VENDA_RE = re.compile(r"\b(?:venda|vender|comprar)\b", re.I)
 CAMINHO_IMOVEL_RE = re.compile(
@@ -204,7 +213,7 @@ def avaliar_extracao(html: str, seletores: dict, pagina_url: str = "") -> dict:
         + taxas["thumbnail"] * 0.15
         + quantidade_score * 0.10
     )
-    if len(hrefs) < min(3, total):
+    if len(hrefs) < min(2, total):
         qualidade *= 0.75
         motivos.append("Poucos links de anúncios distintos foram encontrados.")
     if taxas["preco"] < 0.5:
@@ -315,13 +324,30 @@ def detectar_seletores(html: str) -> dict:
         0.15,
     ))
     _, preco = _melhor(candidatos_desc(
-        lambda t: bool(PRECO_RE.search(_texto(t))) and len(_texto(t)) <= 100,
+        lambda t: bool(PRECO_FORTE_RE.search(_texto(t)))
+        and len(_texto(t)) <= 100
+        and (
+            "R$" in _texto(t)
+            or "consultar" in _texto(t).lower()
+            or any(
+                termo in " ".join(t.get("class") or []).lower()
+                for termo in ("preco", "price", "valor")
+            )
+        ),
         0.25,
     ))
     _, thumbnail = _melhor(candidatos_desc(
         lambda t: t.name == "img" and bool(_atributo_imagem(t)),
         0.1,
     ))
+    if not thumbnail:
+        cards_com_imagem_unica = [
+            card
+            for card in tags_card
+            if len([img for img in card.find_all("img") if _atributo_imagem(img)]) == 1
+        ]
+        if len(cards_com_imagem_unica) / quantidade >= 0.5:
+            thumbnail = ("img", ())
     _, titulo = _melhor(candidatos_desc(
         lambda t: t.name in {"h1", "h2", "h3", "h4", "h5", "h6"}
         and 4 <= len(_texto(t)) <= 220,

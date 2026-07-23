@@ -499,7 +499,15 @@ def _links_listagem(soup, pagina_url):
         score = 0
         score += sum(p in texto for p in PALAVRAS_ALUGUEL) * 20
         score += sum(p in texto for p in PALAVRAS_CAMINHO_IMOVEL) * 5
+        if any(p in texto for p in ("pesquisar", "buscar", "busca", "filtro", "listagem")):
+            score += 25
         score -= sum(p in texto for p in PALAVRAS_CAMINHO_RUIM) * 12
+        caminho = urlparse(url).path.lower().rstrip("/")
+        if (
+            re.search(r"/imoveis/[^/]+$", caminho)
+            and not any(p in caminho for p in ("pesquisar", "buscar", "aluguel", "locacao"))
+        ):
+            score -= 25
         if any(p in texto for p in PALAVRAS_VENDA) and not any(p in texto for p in PALAVRAS_ALUGUEL):
             score -= 15
         if score > 0:
@@ -561,13 +569,20 @@ def resolver_listagem_aluguel(url, municipio="", nome="", sessao=None, max_pagin
             "nome_detectado": dominio(pagina_inicial),
         }
 
-    melhor = max(
-        avaliacoes,
-        key=lambda item: (
+    def prioridade_listagem(item):
+        caminho = normalizar_texto(urlparse(item["url"]).path)
+        sinal_listagem = sum(
+            termo in caminho
+            for termo in ("pesquisar", "buscar", "busca", "filtro", "listagem")
+        )
+        parece_detalhe = bool(re.search(r"/imoveis/[^/]+$", urlparse(item["url"]).path.rstrip("/")))
+        return (
             item["score_pagina"],
+            sinal_listagem - int(parece_detalhe),
             sum(p in normalizar_texto(item["url"]) for p in PALAVRAS_ALUGUEL),
-        ),
-    )
+        )
+
+    melhor = max(avaliacoes, key=prioridade_listagem)
     melhor["base_url"] = (
         f"{urlparse(pagina_inicial).scheme}://{urlparse(pagina_inicial).netloc}"
     )
