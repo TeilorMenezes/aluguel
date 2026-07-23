@@ -61,6 +61,23 @@ def init_db():
                 erro TEXT
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS coletas_site (
+                site_key TEXT PRIMARY KEY,
+                status TEXT NOT NULL,
+                tentativas INTEGER DEFAULT 0,
+                imoveis_coletados INTEGER DEFAULT 0,
+                iniciado_em TEXT,
+                finalizado_em TEXT,
+                erro TEXT
+            )
+        """)
+        conn.execute("""
+            UPDATE coletas_site
+            SET status = 'interrompido',
+                erro = COALESCE(erro, 'Execução interrompida antes da conclusão.')
+            WHERE status = 'executando'
+        """)
         # Registros antigos criados por um seletor impreciso podem apontar
         # para o arquivo da foto, não para o anúncio. Eles não são imóveis.
         conn.execute("""
@@ -323,6 +340,52 @@ def registrar_execucao(tipo: str, imoveis_coletados: int, erro: str = None):
             "INSERT INTO execucoes (executado_em, tipo, imoveis_coletados, erro) VALUES (?, ?, ?, ?)",
             (datetime.now().isoformat(timespec="seconds"), tipo, imoveis_coletados, erro),
         )
+
+
+def registrar_status_site(
+    site_key,
+    status,
+    tentativas=0,
+    imoveis_coletados=0,
+    erro=None,
+):
+    agora = datetime.now().isoformat(timespec="seconds")
+    iniciado_em = agora if status == "executando" else None
+    finalizado_em = agora if status in {"concluido", "erro", "interrompido"} else None
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO coletas_site (
+                site_key, status, tentativas, imoveis_coletados,
+                iniciado_em, finalizado_em, erro
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(site_key) DO UPDATE SET
+                status = excluded.status,
+                tentativas = excluded.tentativas,
+                imoveis_coletados = excluded.imoveis_coletados,
+                iniciado_em = COALESCE(excluded.iniciado_em, coletas_site.iniciado_em),
+                finalizado_em = excluded.finalizado_em,
+                erro = excluded.erro
+            """,
+            (
+                site_key,
+                status,
+                tentativas,
+                imoveis_coletados,
+                iniciado_em,
+                finalizado_em,
+                erro,
+            ),
+        )
+
+
+def listar_status_sites():
+    with get_conn() as conn:
+        linhas = conn.execute(
+            "SELECT * FROM coletas_site ORDER BY site_key"
+        ).fetchall()
+    return [dict(linha) for linha in linhas]
 
 
 def ultima_execucao():

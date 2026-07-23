@@ -72,6 +72,11 @@ O botão cria um commit apenas com `sites_config.yaml` e
 incluídos. Depois do deploy, o site publicado coleta automaticamente as
 integrações que ainda não possuem imóveis.
 
+No modo local, o robô usa dois navegadores simultâneos e tenta cada
+imobiliária até três vezes. O andamento fica salvo no SQLite por site; se o
+programa for interrompido, a integração aparece como interrompida e volta a
+ser processada na próxima execução. Uma falha não impede a coleta das demais.
+
 ## 4. Estrutura do projeto
 
 ```
