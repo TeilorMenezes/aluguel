@@ -1533,6 +1533,35 @@ st.markdown(
         border: 1.5px solid transparent;
         border-radius: .65rem;
     }
+    [data-testid="stSelectbox"] div[data-baseweb="select"],
+    [data-testid="stMultiSelect"] div[data-baseweb="select"] {
+        box-sizing: border-box;
+        padding: 2px !important;
+        background: linear-gradient(110deg, #07534b 0%, #168072 48%, #f1c45b 100%) !important;
+        border: 0 !important;
+        border-radius: .72rem !important;
+    }
+    [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+    [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
+        min-height: calc(100% - 4px);
+        background: #f3f7f5 !important;
+        border: 0 !important;
+        border-radius: .58rem !important;
+    }
+    [data-testid="stSelectbox"]:focus-within div[data-baseweb="select"],
+    [data-testid="stMultiSelect"]:focus-within div[data-baseweb="select"] {
+        background: linear-gradient(110deg, #07534b 0%, #f1c45b 100%) !important;
+        box-shadow: 0 0 0 .24rem rgba(241,196,91,.18) !important;
+    }
+    [data-testid="stSlider"] {
+        box-sizing: border-box;
+        padding: .7rem .85rem .45rem;
+        background:
+            linear-gradient(white, white) padding-box,
+            linear-gradient(110deg, #07534b 0%, #168072 48%, #f1c45b 100%) border-box;
+        border: 2px solid transparent;
+        border-radius: .72rem;
+    }
     .mv-result-summary {
         display: flex;
         align-items: end;
