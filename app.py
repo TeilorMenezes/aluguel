@@ -17,6 +17,7 @@ from streamlit_folium import st_folium
 
 import db
 from detector import detectar_seletores, inspecionar_url, salvar_padrao
+from paginacao import paginas_visiveis
 from descobrir_sites import (
     descobrir_urls_estado,
     descobrir_urls_regiao,
@@ -2173,28 +2174,69 @@ st.markdown(
     .mv-result-summary p { margin: 0; color: #61716c; }
     .st-key-mv_pagination {
         margin: 2.5rem auto 1rem;
-        padding: .8rem;
+        padding: 1rem;
         background: #f7faf8;
         border: 1px solid #e1e9e5;
         border-radius: 1rem;
+        box-shadow: 0 .5rem 1.5rem rgba(7, 83, 75, .06);
     }
     .st-key-mv_pagination p {
-        margin: .65rem 0 0;
+        margin: 0 0 .75rem;
         color: #53655f;
         font-size: .86rem;
         font-weight: 700;
         text-align: center;
     }
+    .st-key-mv_pagination [data-testid="stHorizontalBlock"] {
+        align-items: center;
+        justify-content: center;
+        gap: .4rem;
+    }
     .st-key-mv_pagination button {
         min-height: 2.8rem;
+        padding: .35rem .65rem;
         color: #0b4f49;
         background: white;
         border: 1px solid #cddbd6;
+        border-radius: .72rem;
+        font-weight: 800;
     }
     .st-key-mv_pagination button:hover:not(:disabled) {
         color: white;
         background: #0b4f49;
         border-color: #0b4f49;
+    }
+    .st-key-mv_pagination [data-testid="stBaseButton-primary"]:disabled {
+        color: white;
+        background: #0b4f49;
+        border-color: #0b4f49;
+        opacity: 1;
+    }
+    .mv-page-ellipsis {
+        display: flex;
+        min-height: 2.8rem;
+        align-items: center;
+        justify-content: center;
+        color: #71817c;
+        font-weight: 800;
+    }
+    @media (max-width: 700px) {
+        .st-key-mv_pagination [data-testid="stHorizontalBlock"] {
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+        .st-key-mv_pagination [data-testid="stColumn"] {
+            order: 3;
+            flex: 1 1 2.2rem !important;
+            width: auto !important;
+            min-width: 2.2rem !important;
+        }
+        .st-key-mv_pagination [data-testid="stColumn"]:first-child,
+        .st-key-mv_pagination [data-testid="stColumn"]:last-child {
+            flex: 1 1 calc(50% - .3rem) !important;
+        }
+        .st-key-mv_pagination [data-testid="stColumn"]:first-child { order: 1; }
+        .st-key-mv_pagination [data-testid="stColumn"]:last-child { order: 2; }
     }
     .mv-empty {
         margin: 2rem 0;
@@ -2746,7 +2788,7 @@ def renderizar_resultados_v2():
         st.session_state["_assinatura_paginacao_v2"] = assinatura_paginacao
         st.session_state["pagina_resultados_v2"] = 1
 
-    itens_por_pagina = 12
+    itens_por_pagina = 30
     total_imoveis = db.contar_imoveis(
         preco_min=faixa[0],
         preco_max=faixa[1],
@@ -2778,7 +2820,7 @@ def renderizar_resultados_v2():
 
     st.markdown(
         f"""
-        <div class="mv-result-summary">
+        <div id="resultados-lista" class="mv-result-summary">
             <div>
                 <h2>Imóveis encontrados</h2>
                 <p>{total_imoveis} opções {titulo_localidade} · mostrando {primeiro_item}–{ultimo_item}</p>
@@ -2869,27 +2911,63 @@ def renderizar_resultados_v2():
 
     if total_paginas > 1:
         with st.container(key="mv_pagination"):
-            coluna_anterior, coluna_pagina, coluna_proxima = st.columns([1, 1.4, 1])
-            with coluna_anterior:
+            st.markdown(f"Página {pagina_atual} de {total_paginas}")
+            paginas = paginas_visiveis(pagina_atual, total_paginas)
+            pesos = [1.8, *([0.7] * len(paginas)), 1.8]
+            colunas_paginacao = st.columns(pesos, gap="small")
+
+            with colunas_paginacao[0]:
                 if st.button(
-                    "← Página anterior",
+                    "← Anterior",
                     disabled=pagina_atual == 1,
                     use_container_width=True,
                     key="pagina_anterior_v2",
                 ):
                     st.session_state["pagina_resultados_v2"] = pagina_atual - 1
+                    st.session_state["_rolar_para_resultados_v2"] = True
                     st.rerun()
-            with coluna_pagina:
-                st.markdown(f"Página {pagina_atual} de {total_paginas}")
-            with coluna_proxima:
+
+            for indice, pagina in enumerate(paginas, start=1):
+                with colunas_paginacao[indice]:
+                    if pagina is None:
+                        st.markdown('<div class="mv-page-ellipsis">…</div>', unsafe_allow_html=True)
+                    elif st.button(
+                        str(pagina),
+                        disabled=pagina == pagina_atual,
+                        type="primary" if pagina == pagina_atual else "secondary",
+                        use_container_width=True,
+                        key=f"pagina_numero_v2_{pagina}",
+                        help=f"Ir para a página {pagina}",
+                    ):
+                        st.session_state["pagina_resultados_v2"] = pagina
+                        st.session_state["_rolar_para_resultados_v2"] = True
+                        st.rerun()
+
+            with colunas_paginacao[-1]:
                 if st.button(
-                    "Próxima página →",
+                    "Próxima →",
                     disabled=pagina_atual == total_paginas,
                     use_container_width=True,
                     key="pagina_proxima_v2",
                 ):
                     st.session_state["pagina_resultados_v2"] = pagina_atual + 1
+                    st.session_state["_rolar_para_resultados_v2"] = True
                     st.rerun()
+
+    if st.session_state.pop("_rolar_para_resultados_v2", False):
+        components.html(
+            """
+            <script>
+                window.setTimeout(() => {
+                    const resultados = window.parent.document.getElementById("resultados-lista");
+                    if (resultados) {
+                        resultados.scrollIntoView({behavior: "smooth", block: "start"});
+                    }
+                }, 180);
+            </script>
+            """,
+            height=0,
+        )
     renderizar_footer_v2()
 
 
