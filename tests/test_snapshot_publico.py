@@ -188,6 +188,37 @@ class PublicSnapshotTest(unittest.TestCase):
             self.assertNotIn("execucoes", tables)
             self.assertNotIn("coletas_site", tables)
 
+    def test_full_price_range_includes_properties_without_price(self):
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp) / "runtime.db"
+            make_source(target, [row("a", 1), row("b", 2)])
+            with closing(sqlite3.connect(target)) as conn:
+                conn.execute("UPDATE imoveis SET preco = NULL WHERE site_key = 'b'")
+                conn.commit()
+            with patch.object(db, "DB_PATH", target):
+                self.assertEqual(
+                    db.contar_imoveis(
+                        preco_min=0,
+                        preco_max=2000,
+                        incluir_sem_preco=True,
+                    ),
+                    2,
+                )
+                self.assertEqual(
+                    db.contar_imoveis(
+                        preco_min=0,
+                        preco_max=2000,
+                        incluir_sem_preco=False,
+                    ),
+                    1,
+                )
+                encontrados = db.listar_imoveis(
+                    preco_min=0,
+                    preco_max=2000,
+                    incluir_sem_preco=True,
+                )
+            self.assertEqual({item["site_key"] for item in encontrados}, {"a", "b"})
+
 
 class DiscoveryAndOverrideTest(unittest.TestCase):
     def test_automatic_pagination_strategy_is_persisted(self):

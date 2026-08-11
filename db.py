@@ -216,15 +216,30 @@ def listar_sites_com_imoveis():
     return {linha["site_key"] for linha in linhas}
 
 
-def _filtros_imoveis(preco_min=None, preco_max=None, bairros=None, cidades=None, tipos=None, imobiliarias=None):
+def _filtros_imoveis(
+    preco_min=None,
+    preco_max=None,
+    bairros=None,
+    cidades=None,
+    tipos=None,
+    imobiliarias=None,
+    incluir_sem_preco=False,
+):
     query = " FROM imoveis WHERE 1=1"
     params = []
+    filtros_preco = []
     if preco_min is not None:
-        query += " AND preco >= ?"
+        filtros_preco.append("preco >= ?")
         params.append(preco_min)
     if preco_max is not None:
-        query += " AND preco <= ?"
+        filtros_preco.append("preco <= ?")
         params.append(preco_max)
+    if filtros_preco:
+        expressao_preco = " AND ".join(filtros_preco)
+        if incluir_sem_preco:
+            query += f" AND (preco IS NULL OR ({expressao_preco}))"
+        else:
+            query += f" AND {expressao_preco}"
     if bairros:
         placeholders = ",".join("?" * len(bairros))
         query += f" AND bairro IN ({placeholders})"
@@ -244,7 +259,15 @@ def _filtros_imoveis(preco_min=None, preco_max=None, bairros=None, cidades=None,
     return query, params
 
 
-def contar_imoveis(preco_min=None, preco_max=None, bairros=None, cidades=None, tipos=None, imobiliarias=None):
+def contar_imoveis(
+    preco_min=None,
+    preco_max=None,
+    bairros=None,
+    cidades=None,
+    tipos=None,
+    imobiliarias=None,
+    incluir_sem_preco=False,
+):
     query, params = _filtros_imoveis(
         preco_min=preco_min,
         preco_max=preco_max,
@@ -252,6 +275,7 @@ def contar_imoveis(preco_min=None, preco_max=None, bairros=None, cidades=None, t
         cidades=cidades,
         tipos=tipos,
         imobiliarias=imobiliarias,
+        incluir_sem_preco=incluir_sem_preco,
     )
     with get_conn() as conn:
         row = conn.execute(f"SELECT COUNT(*) AS total{query}", params).fetchone()
@@ -268,6 +292,7 @@ def listar_imoveis(
     ordenar_por="recentes",
     limite=None,
     deslocamento=0,
+    incluir_sem_preco=False,
 ):
     filtros, params = _filtros_imoveis(
         preco_min=preco_min,
@@ -276,6 +301,7 @@ def listar_imoveis(
         cidades=cidades,
         tipos=tipos,
         imobiliarias=imobiliarias,
+        incluir_sem_preco=incluir_sem_preco,
     )
     query = f"SELECT *{filtros}"
 
