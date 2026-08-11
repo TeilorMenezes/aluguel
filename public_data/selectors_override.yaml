@@ -1,2 +1,120 @@
-# Correções de seletores aprovadas e publicadas pelo Agente de Expansão.
-sites: {}
+sites:
+  portal_imoveis:
+    paginacao:
+      tipo: url
+      url_template: https://portalimoveisimobiliaria.com.br/imoveis-locacao?start={pagina}
+      pagina_inicial: 1
+      proxima_pagina: 21
+      incremento: 21
+      max_paginas: 100
+      parar_sem_novos: 1
+      fallback:
+        tipo: botao
+        botao_selector: a[aria-label*='próxim' i]
+        max_cliques: 50
+        espera_apos_clique_ms: 1600
+        parar_sem_novos: 2
+        aprendida_automaticamente: true
+      aprendida_automaticamente: true
+      apis_observadas:
+      - https://portalimoveisimobiliaria.com.br/media/system/js/searchtools.min.js?61db5b55e2018b60b2e8ea8f44eefa507e5b1707
+      - https://portalimoveisimobiliaria.com.br/index.php?option=com_widesys&task=ajax.favorites&format=raw&tmpl=component
+    estrategia_atualizada_em: '2026-08-10T19:19:32-03:00'
+  allex:
+    paginacao:
+      tipo: api_aprendida
+      url_template: https://alleximoveis.com.br/busca/paginador?page={pagina}&operacao=LA&categoria=20382&ordem=PRECO_ASC&busca=avancada
+      pagina_inicial: 2
+      incremento: 1
+      max_paginas: 100
+      parar_sem_novos: 2
+      formato: auto
+      fallback:
+        tipo: botao
+        botao_selector: a.scroll-load
+        max_cliques: 50
+        espera_apos_clique_ms: 1600
+        parar_sem_novos: 2
+        aprendida_automaticamente: true
+      aprendida_automaticamente: true
+      apis_observadas:
+      - https://alleximoveis.com.br/busca/paginador?page=2&operacao=LA&categoria=20382&ordem=PRECO_ASC&busca=avancada
+      - https://alleximoveis.com.br/busca/paginador/?operacao=LA&categoria=20382&ordem=PRECO_ASC&busca=avancada&page=3
+      - https://alleximoveis.com.br/busca/paginador?operacao=LA&categoria=20382&ordem=PRECO_ASC&busca=avancada&page=3
+      - https://alleximoveis.com.br/busca/paginador/?operacao=LA&categoria=20382&ordem=PRECO_ASC&busca=avancada&page=4
+      - https://alleximoveis.com.br/busca/paginador?operacao=LA&categoria=20382&ordem=PRECO_ASC&busca=avancada&page=4
+      - https://alleximoveis.com.br/busca/paginador/?operacao=LA&categoria=20382&ordem=PRECO_ASC&busca=avancada&page=5
+      - https://alleximoveis.com.br/busca/paginador?operacao=LA&categoria=20382&ordem=PRECO_ASC&busca=avancada&page=5
+      - https://alleximoveis.com.br/busca/paginador/?operacao=LA&categoria=20382&ordem=PRECO_ASC&busca=avancada&page=6
+      - https://alleximoveis.com.br/busca/paginador?operacao=LA&categoria=20382&ordem=PRECO_ASC&busca=avancada&page=6
+      itens_observados: 91
+      min_itens_esperados: 72
+    estrategia_atualizada_em: '2026-08-10T19:19:40-03:00'
+  minas_caixa:
+    paginacao:
+      tipo: botao
+      botao_selector: a[aria-label*='next' i]
+      max_cliques: 50
+      espera_apos_clique_ms: 1600
+      parar_sem_novos: 2
+      aprendida_automaticamente: true
+      apis_observadas:
+      - https://www.minascaixaimoveis.com.br/imoveis/ajax/
+    estrategia_atualizada_em: '2026-08-10T19:23:04-03:00'
+  ferreira:
+    paginacao:
+      tipo: url
+      url_template: https://ferreiraimoveis.net/imoveis/para-alugar?pagina={pagina}
+      pagina_inicial: 1
+      proxima_pagina: 2
+      incremento: 1
+      max_paginas: 100
+      parar_sem_novos: 1
+      fallback:
+        tipo: botao
+        botao_selector: a[rel='next']
+        max_cliques: 50
+        espera_apos_clique_ms: 1600
+        parar_sem_novos: 2
+        aprendida_automaticamente: true
+      aprendida_automaticamente: true
+      apis_observadas:
+      - https://ferreiraimoveis.net/buscar/imoveis/para-alugar?pagina=2&ordernar-por=mais-recentes&_=1786400563779
+    estrategia_atualizada_em: '2026-08-10T19:23:05-03:00'
+  me_imobiliaria:
+    paginacao:
+      tipo: botao
+      botao_selector: a[aria-label*='next' i]
+      max_cliques: 50
+      espera_apos_clique_ms: 1600
+      parar_sem_novos: 2
+      aprendida_automaticamente: true
+      apis_observadas:
+      - https://www.meimobiliaria.com.br/imoveis/ajax/
+    estrategia_atualizada_em: '2026-08-10T19:23:08-03:00'
+  catedral:
+    paginacao:
+      tipo: api_aprendida
+      url_template: https://www.catedralimobiliaria.com.br/buscar/imoveis/para-alugar?pagina={pagina}&ordernar-por=mais-recentes&_=1786400564075
+      pagina_inicial: 2
+      incremento: 1
+      max_paginas: 100
+      parar_sem_novos: 2
+      formato: auto
+      fallback:
+        tipo: botao
+        botao_selector: a[rel='next']
+        max_cliques: 50
+        espera_apos_clique_ms: 1600
+        parar_sem_novos: 2
+        aprendida_automaticamente: true
+      aprendida_automaticamente: true
+      apis_observadas:
+      - https://www.catedralimobiliaria.com.br/buscar/imoveis/para-alugar?pagina=2&ordernar-por=mais-recentes&_=1786400564075
+      - https://www.catedralimobiliaria.com.br/buscar/imoveis/para-alugar?pagina=3&ordernar-por=mais-recentes&_=1786400564076
+      - https://www.catedralimobiliaria.com.br/buscar/imoveis/para-alugar?pagina=4&ordernar-por=mais-recentes&_=1786400564077
+      - https://www.catedralimobiliaria.com.br/buscar/imoveis/para-alugar?pagina=5&ordernar-por=mais-recentes&_=1786400564078
+      - https://www.catedralimobiliaria.com.br/buscar/imoveis/para-alugar?pagina=6&ordernar-por=mais-recentes&_=1786400564079
+      itens_observados: 111
+      min_itens_esperados: 88
+    estrategia_atualizada_em: '2026-08-10T19:23:47-03:00'
