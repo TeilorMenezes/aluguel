@@ -306,9 +306,9 @@ def listar_imoveis(
     query = f"SELECT *{filtros}"
 
     ordens = {
-        "recentes": "coletado_em DESC",
-        "preco_asc": "preco IS NULL, preco ASC",
-        "preco_desc": "preco IS NULL, preco DESC",
+        "recentes": "coletado_em DESC, id DESC",
+        "preco_asc": "preco IS NULL, preco ASC, id DESC",
+        "preco_desc": "preco IS NULL, preco DESC, id DESC",
     }
     query += f" ORDER BY {ordens.get(ordenar_por, ordens['recentes'])}"
     if limite is not None:
