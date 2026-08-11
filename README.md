@@ -1,5 +1,10 @@
 # Scraper de Imóveis para Alugar
 
+> **Direção oficial do projeto:** consulte [Produto](docs/PRODUCT.md),
+> [Arquitetura](docs/ARCHITECTURE.md), [Roadmap](docs/ROADMAP.md) e
+> [regras para agentes](AGENTS.md). Este README permanece como guia operacional
+> do MVP atual.
+
 Aplicação Python que varre sites de imobiliárias configurados por você,
 guarda os imóveis para aluguel em um banco SQLite, e mostra tudo numa
 página Streamlit com filtros de preço/bairro e um mapa interativo.
