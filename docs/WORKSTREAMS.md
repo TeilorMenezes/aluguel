@@ -22,6 +22,24 @@ proibidos, critérios de aceitação, validação e formato do relatório.
 | Analytics | indicadores, amostras e contratos analíticos | alteração de dados brutos |
 | Growth e Conteúdo | SEO editorial, marca e aquisição | publicação sem aprovação |
 
+## Agentes configurados
+
+Cada frente possui uma configuração persistente em `.codex/agents/`:
+
+| Frente | Agente |
+|---|---|
+| Plataforma e Dados | `plataforma_dados` |
+| Coleta e Fontes | `coleta_fontes` |
+| Frontend, UX e SEO | `frontend_ux_seo` |
+| Qualidade e Release | `qualidade_release` |
+| Segurança e Compliance | `seguranca_compliance` |
+| DevOps e Confiabilidade | `devops_confiabilidade` |
+| Analytics | `analytics_mercado` |
+| Growth e Conteúdo | `growth_conteudo` |
+
+O protocolo, o prompt reutilizável do orquestrador e um exemplo de delegação
+estão em `docs/ORCHESTRATION.md`.
+
 ## Concorrência
 
 Trabalhos podem ocorrer em paralelo somente quando:
