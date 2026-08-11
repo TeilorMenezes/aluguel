@@ -8,3 +8,4 @@ data/deteccao_*.html
 data/imobiliarias_*.csv
 data/sites_candidatos_*.csv
 .streamlit/secrets.toml
+agente_expansao/data/

@@ -67,15 +67,32 @@ Isso abre a showpage no navegador. Ao iniciar, a aplicação já agenda:
 4. Aprove somente os sites que extraírem card, link e preço corretamente.
 5. Na aba **Publicar no site**, clique em **Publicar configurações no GitHub**.
 
+### Agente de Expansão e snapshot público
+
+Para uma raspagem local mais robusta, execute `INICIAR_AGENTE.bat`. O painel
+separado permite raspar todas ou algumas imobiliárias, visualizar os anúncios,
+preparar substituição completa ou atualização parcial e criar um pull request
+com um snapshot SQLite validado.
+
+Quando `public_data/imoveis.db` estiver presente, o site o usa como base inicial
+de cada deploy. A atualização natural e o agendamento existentes continuam
+ativos; o snapshot não remove nem desativa essa busca.
+
 O botão cria um commit apenas com `sites_config.yaml` e
 `detector_patterns.yaml`; banco de dados, quarentena e senhas nunca são
 incluídos. Depois do deploy, o site publicado coleta automaticamente as
 integrações que ainda não possuem imóveis.
 
-No modo local, o robô usa dois navegadores simultâneos e tenta cada
-imobiliária até três vezes. O andamento fica salvo no SQLite por site; se o
-programa for interrompido, a integração aparece como interrompida e volta a
-ser processada na próxima execução. Uma falha não impede a coleta das demais.
+No modo local, o robô calcula automaticamente quantos navegadores ou tarefas de
+API o computador suporta naquele momento e reduz o lote se CPU ou memória
+ficarem pressionadas. Cada imobiliária pode ser tentada até três vezes. O
+andamento fica salvo no SQLite por site; se o programa for interrompido, o painel
+oferece continuar das imobiliárias pendentes. Uma falha não impede a coleta das
+demais.
+
+O agente também aprende botão “carregar mais”, rolagem, próxima página, padrões
+de API e divisões por filtros. O ensino manual é feito clicando no próprio site,
+sem precisar abrir ferramentas de programação.
 
 ## 4. Estrutura do projeto
 
