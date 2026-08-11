@@ -137,14 +137,22 @@ class ConsultasPublicasTest(unittest.TestCase):
         db.upsert_imovel(self._item(url, preco, coletado_em))
 
     def test_contagem_e_listagem_compartilham_filtros_e_sob_consulta(self):
-        filtros = {"preco_min": 900, "preco_max": 1500, "incluir_sem_preco": True}
-        self.assertEqual(3, db.contar_imoveis(**filtros))
-        self.assertEqual(3, len(db.listar_imoveis(**filtros)))
+        combinacoes = (
+            ({"preco_min": None, "preco_max": None, "incluir_sem_preco": True}, 4),
+            ({"preco_min": None, "preco_max": None, "incluir_sem_preco": False}, 3),
+            ({"preco_min": 900, "preco_max": 1500, "incluir_sem_preco": True}, 3),
+            ({"preco_min": 900, "preco_max": 1500, "incluir_sem_preco": False}, 2),
+        )
+        for filtros, esperado in combinacoes:
+            with self.subTest(filtros=filtros):
+                self.assertEqual(esperado, db.contar_imoveis(**filtros))
+                self.assertEqual(esperado, len(db.listar_imoveis(**filtros)))
 
     def test_ordenacoes_tem_desempate_estavel(self):
-        recentes = db.listar_imoveis(ordenar_por="recentes")
-        crescentes = db.listar_imoveis(ordenar_por="preco_asc")
-        decrescentes = db.listar_imoveis(ordenar_por="preco_desc")
+        filtros = {"incluir_sem_preco": True}
+        recentes = db.listar_imoveis(ordenar_por="recentes", **filtros)
+        crescentes = db.listar_imoveis(ordenar_por="preco_asc", **filtros)
+        decrescentes = db.listar_imoveis(ordenar_por="preco_desc", **filtros)
 
         self.assertEqual("https://exemplo.test/consulta", recentes[0]["url"])
         self.assertEqual(

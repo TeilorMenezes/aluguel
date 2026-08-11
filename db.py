@@ -240,6 +240,8 @@ def _filtros_imoveis(
             query += f" AND (preco IS NULL OR ({expressao_preco}))"
         else:
             query += f" AND {expressao_preco}"
+    elif not incluir_sem_preco:
+        query += " AND preco IS NOT NULL"
     if bairros:
         placeholders = ",".join("?" * len(bairros))
         query += f" AND bairro IN ({placeholders})"
