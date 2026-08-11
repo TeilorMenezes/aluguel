@@ -282,6 +282,58 @@ class DiscoveryAndOverrideTest(unittest.TestCase):
             self.assertIn("novo", loaded["sites"])
             self.assertEqual(loaded["sites"]["novo"]["seletores"]["preco"], ".preco")
 
+    def test_learned_site_without_logo_is_persisted_with_empty_logo(self):
+        with tempfile.TemporaryDirectory() as temp:
+            temp = Path(temp)
+            config_path, override_path = temp / "sites.yaml", temp / "override.yaml"
+            config_path.write_text("sites: {}\n", encoding="utf-8")
+            override_path.write_text(
+                yaml.safe_dump({"sites": {"dommusimoveis": {
+                    "nome": "Dommus Imóveis",
+                    "base_url": "https://dommusimoveis.test",
+                    "listagem_url": "https://dommusimoveis.test/aluguel",
+                    "cidade_padrao": "Ipatinga",
+                    "seletores": {
+                        "card": ".card",
+                        "link": "a",
+                        "titulo": "h2",
+                        "preco": ".preco",
+                        "thumbnail": "img",
+                    },
+                }}}),
+                encoding="utf-8",
+            )
+
+            def collect(site_key, site_config, *_args):
+                return site_key, site_config, [{
+                    "url": "https://dommusimoveis.test/imovel/1",
+                    "titulo": "Apartamento Centro",
+                    "tipo": "Apartamento",
+                    "preco": 1200.0,
+                    "bairro": "Centro",
+                    "cidade": "Ipatinga",
+                    "thumbnail_url": "https://dommusimoveis.test/imovel/1.jpg",
+                }], 1, None
+
+            with (
+                patch.object(scraper, "CONFIG_PATH", config_path),
+                patch.dict(os.environ, {"IMOVEIS_SELECTORS_OVERRIDE": str(override_path)}),
+                patch.object(scraper, "_raspar_site_com_retentativa", side_effect=collect),
+                patch.object(scraper, "geocodificar_bairro", return_value=(None, None)),
+                patch.object(scraper.db, "init_db"),
+                patch.object(scraper.db, "upsert_imovel") as upsert,
+                patch.object(scraper.db, "remover_ausentes"),
+                patch.object(scraper.db, "registrar_status_site"),
+                patch.object(scraper.db, "registrar_execucao"),
+            ):
+                total, error = scraper.rodar_varredura(
+                    sites_filtrados=["dommusimoveis"]
+                )
+
+            self.assertEqual(total, 1)
+            self.assertIsNone(error)
+            self.assertEqual(upsert.call_args.args[0]["logo_url"], "")
+
     def test_local_collection_worker_uses_isolated_database(self):
         with tempfile.TemporaryDirectory() as temp:
             temp = Path(temp)
