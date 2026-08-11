@@ -4,14 +4,17 @@ Armazena os imóveis coletados e um cache de geocodificação (bairro -> lat/lon
 para evitar bater no serviço de geocoding repetidamente.
 """
 import sqlite3
+import os
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
 from normalizacao import eh_bairro_valido, normalizar_imobiliaria, normalizar_localizacao
 
-DB_PATH = Path(__file__).parent / "data" / "imoveis.db"
-DB_PATH.parent.mkdir(exist_ok=True)
+_DB_FROM_ENV = os.getenv("IMOVEIS_DB_PATH")
+DEFAULT_DB_PATH = Path(__file__).parent / "data" / "imoveis.db"
+DB_PATH = Path(_DB_FROM_ENV) if _DB_FROM_ENV else DEFAULT_DB_PATH
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 @contextmanager
@@ -26,6 +29,10 @@ def get_conn():
 
 
 def init_db():
+    if not _DB_FROM_ENV and DB_PATH.resolve() == DEFAULT_DB_PATH.resolve():
+        from snapshot_publico import install_public_snapshot_if_needed
+
+        install_public_snapshot_if_needed(DB_PATH)
     with get_conn() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS imoveis (
@@ -89,6 +96,40 @@ def init_db():
                OR lower(url) LIKE '%.gif%'
         """)
         _normalizar_registros_existentes(conn)
+
+
+def init_public_db():
+    """Inicializa somente o catálogo de leitura consumido pelo site público.
+
+    O processo público não cria tabelas operacionais nem inicia coleta. Quando
+    um snapshot revisado muda de versão, ele substitui atomicamente o banco
+    efêmero anterior antes da primeira leitura.
+    """
+    if not _DB_FROM_ENV and DB_PATH.resolve() == DEFAULT_DB_PATH.resolve():
+        from snapshot_publico import install_public_snapshot_if_needed
+
+        install_public_snapshot_if_needed(DB_PATH)
+    with get_conn() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS imoveis (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                site_key TEXT NOT NULL,
+                imobiliaria TEXT NOT NULL,
+                logo_url TEXT,
+                url TEXT NOT NULL UNIQUE,
+                titulo TEXT,
+                tipo TEXT,
+                preco REAL,
+                bairro TEXT,
+                cidade TEXT,
+                thumbnail_url TEXT,
+                latitude REAL,
+                longitude REAL,
+                coletado_em TEXT
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_imoveis_site ON imoveis(site_key)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_imoveis_cidade ON imoveis(cidade)")
 
 
 def _normalizar_registros_existentes(conn):

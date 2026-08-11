@@ -8,12 +8,15 @@ Suporta dois tipos de paginação, configurados por site:
   - "botao": clica repetidamente num botão "ver mais" até não haver mais
   - "url":   incrementa um parâmetro {pagina} na URL da listagem
 """
+import json
 import re
+import os
 import time
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import quote, urljoin, urlparse, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, urljoin, urlparse, urlsplit, urlunsplit
 
 import yaml
 import requests
@@ -26,6 +29,8 @@ from tipos import normalizar_tipo
 from normalizacao import normalizar_localizacao
 
 CONFIG_PATH = Path(__file__).parent / "sites_config.yaml"
+DEFAULT_OVERRIDE_PATH = Path(__file__).parent / "public_data" / "selectors_override.yaml"
+_OVERRIDE_LOCK = threading.Lock()
 
 
 def _normalizar_url_imagem(url):
@@ -71,6 +76,36 @@ def _link_do_imovel(card, seletor_preferido):
 
 def carregar_config():
     config = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+    override_path = Path(os.getenv("IMOVEIS_SELECTORS_OVERRIDE", DEFAULT_OVERRIDE_PATH))
+    if override_path.is_file():
+        overrides = yaml.safe_load(override_path.read_text(encoding="utf-8")) or {}
+        for site_key, learned in (overrides.get("sites") or {}).items():
+            if site_key not in config.get("sites", {}):
+                required = {"nome", "base_url", "listagem_url", "seletores"}
+                if required.issubset(learned):
+                    config.setdefault("sites", {})[site_key] = {
+                        key: value for key, value in learned.items()
+                        if key != "aprendido_em"
+                    }
+                else:
+                    continue
+            site = config["sites"][site_key]
+            if learned.get("listagem_url"):
+                site["listagem_url"] = learned["listagem_url"]
+            if learned.get("seletores"):
+                site["seletores"] = {
+                    **(site.get("seletores") or {}),
+                    **learned["seletores"],
+                }
+            if learned.get("espera_seletor"):
+                site["espera_seletor"] = learned["espera_seletor"]
+            if learned.get("paginacao"):
+                site["paginacao"] = {
+                    **(site.get("paginacao") or {}),
+                    **learned["paginacao"],
+                }
+            if learned.get("filtros"):
+                site["filtros"] = learned["filtros"]
     # Se a antiga descoberta automática ainda existir no arquivo de uma sessão
     # anterior, ignore-a: a fonte oficial usa a integração imoview_api.
     for chave, site in list(config["sites"].items()):
@@ -410,10 +445,26 @@ def _extrair_cards(page, cfg_site: dict):
     return itens
 
 
+def _adicionar_itens_unicos(page, cfg_site, todos_itens, urls_vistas):
+    novos = []
+    for item in _extrair_com_autocorrecao(page, cfg_site):
+        url = item.get("url")
+        if not url or url in urls_vistas:
+            continue
+        urls_vistas.add(url)
+        todos_itens.append(item)
+        novos.append(item)
+    return novos
+
+
 def _raspar_com_botao(page, cfg_site: dict, pag_cfg: dict):
     botao_sel = pag_cfg.get("botao_selector")
-    max_cliques = pag_cfg.get("max_cliques", 10)
+    max_cliques = pag_cfg.get("max_cliques", 40)
     espera_ms = pag_cfg.get("espera_apos_clique_ms", 1500)
+    sem_novos_limite = pag_cfg.get("parar_sem_novos", 2)
+    todos_itens, urls_vistas = [], set()
+    _adicionar_itens_unicos(page, cfg_site, todos_itens, urls_vistas)
+    sem_novos = 0
 
     for _ in range(max_cliques):
         botao = page.query_selector(botao_sel) if botao_sel else None
@@ -424,13 +475,608 @@ def _raspar_com_botao(page, cfg_site: dict, pag_cfg: dict):
         except Exception:
             break
         page.wait_for_timeout(espera_ms)
+        novos = _adicionar_itens_unicos(page, cfg_site, todos_itens, urls_vistas)
+        sem_novos = 0 if novos else sem_novos + 1
+        if sem_novos >= sem_novos_limite:
+            break
 
-    return _enriquecer_itens_incompletos(page, _extrair_com_autocorrecao(page, cfg_site))
+    return _enriquecer_itens_incompletos(page, todos_itens)
+
+
+def _raspar_com_rolagem(page, cfg_site: dict, pag_cfg: dict):
+    max_rolagens = pag_cfg.get("max_rolagens", 50)
+    espera_ms = pag_cfg.get("espera_apos_rolagem_ms", 1400)
+    sem_novos_limite = pag_cfg.get("parar_sem_novos", 3)
+    todos_itens, urls_vistas = [], set()
+    _adicionar_itens_unicos(page, cfg_site, todos_itens, urls_vistas)
+    sem_novos = 0
+    for _ in range(max_rolagens):
+        page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
+        page.wait_for_timeout(espera_ms)
+        novos = _adicionar_itens_unicos(page, cfg_site, todos_itens, urls_vistas)
+        sem_novos = 0 if novos else sem_novos + 1
+        if sem_novos >= sem_novos_limite:
+            break
+    return _enriquecer_itens_incompletos(page, todos_itens)
+
+
+def _detectar_controle_continuacao(page):
+    """Localiza controles prováveis sem depender de uma plataforma específica."""
+    seletores_fortes = (
+        "a.scroll-load", "button.scroll-load", "a.load-more", "button.load-more",
+        "[data-load-more]", "a[rel='next']", "button[aria-label*='mais' i]",
+        "a[aria-label*='próxim' i]", "a[aria-label*='next' i]",
+    )
+    for seletor in seletores_fortes:
+        try:
+            candidatos = page.query_selector_all(seletor)
+            if any(item.is_visible() for item in candidatos):
+                return seletor
+        except Exception:
+            continue
+
+    try:
+        return page.evaluate(
+            """
+            () => {
+              const rx = /^(carregar|ver|mostrar)\\s+mais(?:\\s+im[oó]veis)?$|^(pr[oó]xima|pr[oó]ximo|next)$/i;
+              const stable = value => value && value.length < 70 && !/\\d{4,}/.test(value);
+              const visible = el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+              for (const el of document.querySelectorAll('a,button,[role="button"]')) {
+                if (!visible(el) || !rx.test((el.innerText || '').trim())) continue;
+                if (stable(el.id)) return '#' + CSS.escape(el.id);
+                const classes = [...el.classList].filter(stable).slice(0, 4);
+                if (classes.length) return el.tagName.toLowerCase() + classes.map(c => '.' + CSS.escape(c)).join('');
+              }
+              const current = Number(new URL(location.href).searchParams.get('page') || new URL(location.href).searchParams.get('pagina') || 1);
+              const links = [...document.querySelectorAll('a[href]')].map(a => {
+                try {
+                  const u = new URL(a.href, location.href);
+                  return {a, u, n: Number(u.searchParams.get('page') || u.searchParams.get('pagina'))};
+                } catch (_) { return null; }
+              }).filter(x => x && x.n > current).sort((a,b) => a.n-b.n);
+              if (links.length) {
+                const href = links[0].a.getAttribute('href');
+                return `a[href="${CSS.escape(href)}"]`;
+              }
+              return '';
+            }
+            """
+        ) or None
+    except Exception:
+        return None
+
+
+def _template_url_numerica(urls):
+    """Infere apenas padrões de paginação realmente observados em URLs."""
+    urls = [url for url in dict.fromkeys(urls or []) if url]
+    if not urls:
+        return None
+
+    parsed = [urlsplit(url) for url in urls]
+    query_maps = [dict(parse_qsl(item.query, keep_blank_values=True)) for item in parsed]
+    preferred = ("page", "pagina", "página", "pg", "offset", "start")
+    actual_keys = {
+        name.casefold(): name
+        for query in query_maps for name in query
+    }
+    for normalized_key in preferred:
+        key = actual_keys.get(normalized_key)
+        if not key:
+            continue
+        values = []
+        for query in query_maps:
+            value = query.get(key)
+            if value is not None and str(value).isdigit():
+                values.append(int(value))
+        if not values:
+            continue
+        # Para APIs exigimos repetição; para links HTML um parâmetro de página
+        # explícito já é evidência suficiente porque o próprio site o publicou.
+        base = parsed[0]
+        pairs = parse_qsl(base.query, keep_blank_values=True)
+        query = "&".join(
+            f"{quote(name, safe='[]')}="
+            + ("{pagina}" if name == key else quote(value, safe="/:,[]"))
+            for name, value in pairs
+        )
+        template = urlunsplit((base.scheme, base.netloc, base.path, query, base.fragment))
+        unique_values = sorted(set(values))
+        differences = [
+            right - left for left, right in zip(unique_values, unique_values[1:])
+            if right > left
+        ]
+        increment = min(differences) if differences else (
+            unique_values[0] if normalized_key in {"offset", "start"} else 1
+        )
+        return {
+            "url_template": template,
+            "parametro": key,
+            "paginas_observadas": unique_values,
+            "incremento": max(1, increment),
+        }
+
+    for url in urls:
+        parts = urlsplit(url)
+        match = re.search(r"(?i)(/pages?|/paginas?|/p)/?(\d+)(?=/|$)", parts.path)
+        if match:
+            path = parts.path[:match.start(2)] + "{pagina}" + parts.path[match.end(2):]
+            return {
+                "url_template": urlunsplit(
+                    (parts.scheme, parts.netloc, path, parts.query, parts.fragment)
+                ),
+                "parametro": "caminho",
+                "paginas_observadas": [int(match.group(2))],
+            }
+    return None
+
+
+def _registrar_historico_estrategia(site_key, action, strategy=None, **details):
+    """Registra diagnóstico local sem criar dependência do app administrativo."""
+    path = os.getenv("IMOVEIS_STRATEGY_HISTORY")
+    if not path:
+        return
+    record = {
+        "quando": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "site_key": site_key,
+        "acao": action,
+        "estrategia": strategy or {},
+        **details,
+    }
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with _OVERRIDE_LOCK:
+        with target.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def _estrategia_api_observada(responses, fallback, observed_items=0):
+    """Promove para API somente uma sequência GET paginada e repetida."""
+    get_urls = [
+        item["url"] for item in responses
+        if item.get("method") == "GET" and item.get("url")
+    ]
+    groups = {}
+    for url in get_urls:
+        parts = urlsplit(url)
+        key = (
+            parts.scheme, parts.netloc, parts.path.rstrip("/"),
+            tuple(sorted(name.casefold() for name, _ in parse_qsl(parts.query))),
+        )
+        groups.setdefault(key, []).append(url)
+    inferred = None
+    observed_group = []
+    for urls in groups.values():
+        candidate = _template_url_numerica(urls)
+        if candidate and len(candidate["paginas_observadas"]) >= 2:
+            inferred, observed_group = candidate, urls
+            break
+    if not inferred:
+        return None
+    strategy = {
+        "tipo": "api_aprendida",
+        "url_template": inferred["url_template"],
+        "pagina_inicial": min(inferred["paginas_observadas"]),
+        "incremento": inferred["incremento"],
+        "max_paginas": 100,
+        "parar_sem_novos": 2,
+        "formato": "auto",
+        "fallback": fallback,
+        "aprendida_automaticamente": True,
+        "apis_observadas": observed_group[:10],
+    }
+    if observed_items:
+        strategy["itens_observados"] = int(observed_items)
+        strategy["min_itens_esperados"] = max(1, int(observed_items * 0.8))
+    return strategy
+
+
+def _salvar_paginacao_aprendida(site_key, estrategia):
+    caminho = os.getenv("IMOVEIS_SELECTORS_OVERRIDE")
+    filtros = estrategia.get("_filtros") if estrategia else None
+    if (
+        not caminho or not site_key or not estrategia
+        or (estrategia.get("tipo") == "nenhuma" and not filtros)
+    ):
+        return
+    caminho = Path(caminho)
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    with _OVERRIDE_LOCK:
+        atual = yaml.safe_load(caminho.read_text(encoding="utf-8")) if caminho.is_file() else {}
+        atual = atual or {}
+        site = atual.setdefault("sites", {}).setdefault(site_key, {})
+        paginacao = {key: value for key, value in estrategia.items() if key != "_filtros"}
+        if paginacao.get("tipo") != "nenhuma":
+            site["paginacao"] = paginacao
+        if filtros:
+            site["filtros"] = filtros
+        site["estrategia_atualizada_em"] = datetime.now().astimezone().isoformat(
+            timespec="seconds"
+        )
+        temporario = caminho.with_suffix(caminho.suffix + ".tmp")
+        temporario.write_text(
+            yaml.safe_dump(atual, allow_unicode=True, sort_keys=False), encoding="utf-8"
+        )
+        temporario.replace(caminho)
+    _registrar_historico_estrategia(
+        site_key, "estrategia_aprendida", paginacao, filtros=filtros or {}
+    )
+
+
+def _raspar_com_deteccao_automatica(page, cfg_site: dict):
+    """Testa botão/próxima página e depois rolagem, medindo URLs realmente novas."""
+    todos_itens, urls_vistas = [], set()
+    _adicionar_itens_unicos(page, cfg_site, todos_itens, urls_vistas)
+    quantidade_inicial = len(urls_vistas)
+    respostas_api = []
+    host_base = urlparse(cfg_site.get("base_url", "")).hostname
+
+    def observar_resposta(resposta):
+        try:
+            tipo = (resposta.headers.get("content-type") or "").lower()
+            url = resposta.url
+            mesmo_site = urlparse(url).hostname == host_base
+            if mesmo_site and ("json" in tipo or re.search(r"api|ajax|paginador|search|busca", url, re.I)):
+                request = resposta.request
+                registro = {
+                    "url": url,
+                    "method": request.method.upper(),
+                    "content_type": tipo,
+                }
+                if registro not in respostas_api:
+                    respostas_api.append(registro)
+        except Exception:
+            pass
+
+    page.on("response", observar_resposta)
+    seletor = _detectar_controle_continuacao(page)
+    if seletor:
+        href_controle = None
+        try:
+            controle = next(
+                (item for item in page.query_selector_all(seletor) if item.is_visible()),
+                None,
+            )
+            href_controle = controle.get_attribute("href") if controle else None
+        except Exception:
+            pass
+        itens = _raspar_com_botao(
+            page,
+            cfg_site,
+            {
+                "botao_selector": seletor,
+                "max_cliques": 50,
+                "espera_apos_clique_ms": 1600,
+                "parar_sem_novos": 2,
+            },
+        )
+        vistos = {item.get("url") for item in itens if item.get("url")}
+        if len(vistos) > quantidade_inicial:
+            fallback = {
+                "tipo": "botao",
+                "botao_selector": seletor,
+                "max_cliques": 50,
+                "espera_apos_clique_ms": 1600,
+                "parar_sem_novos": 2,
+                "aprendida_automaticamente": True,
+            }
+            estrategia = _estrategia_api_observada(
+                respostas_api, fallback, observed_items=len(vistos)
+            )
+            if not estrategia and href_controle:
+                inferred = _template_url_numerica(
+                    [urljoin(cfg_site.get("listagem_url", page.url), href_controle)]
+                )
+                if inferred:
+                    estrategia = {
+                        "tipo": "url",
+                        "url_template": inferred["url_template"],
+                        "pagina_inicial": 1,
+                        "proxima_pagina": min(inferred["paginas_observadas"]),
+                        "incremento": inferred["incremento"],
+                        "max_paginas": 100,
+                        "parar_sem_novos": 1,
+                        "fallback": fallback,
+                        "aprendida_automaticamente": True,
+                    }
+            estrategia = estrategia or fallback
+            if respostas_api and "apis_observadas" not in estrategia:
+                estrategia["apis_observadas"] = [
+                    item["url"] for item in respostas_api[:10]
+                ]
+            return itens, estrategia
+
+    itens_rolagem = _raspar_com_rolagem(
+        page,
+        cfg_site,
+        {"max_rolagens": 50, "espera_apos_rolagem_ms": 1400, "parar_sem_novos": 3},
+    )
+    vistos_rolagem = {item.get("url") for item in itens_rolagem if item.get("url")}
+    if len(vistos_rolagem) > quantidade_inicial:
+        return itens_rolagem, {
+            "tipo": "rolagem",
+            "max_rolagens": 50,
+            "espera_apos_rolagem_ms": 1400,
+            "parar_sem_novos": 3,
+            "aprendida_automaticamente": True,
+            "apis_observadas": [item["url"] for item in respostas_api[:10]],
+        }
+    filtros = _detectar_filtros_divisao(page)
+    if filtros:
+        itens_filtrados = _raspar_com_filtros_na_pagina(
+            page, cfg_site, filtros, {"tipo": "nenhuma"}
+        )
+        vistos_filtros = {item.get("url") for item in itens_filtrados if item.get("url")}
+        if len(vistos_filtros) > quantidade_inicial:
+            return itens_filtrados, {
+                "tipo": "nenhuma",
+                "_filtros": filtros,
+                "aprendida_automaticamente": True,
+            }
+    return _enriquecer_itens_incompletos(page, todos_itens), {"tipo": "nenhuma"}
+
+
+def _valor_dict(record, names):
+    normalized = {str(key).casefold().replace("_", ""): value for key, value in record.items()}
+    for name in names:
+        value = normalized.get(name.casefold().replace("_", ""))
+        if value not in (None, "", []):
+            return value
+    return None
+
+
+def _listas_de_dicts(value):
+    if isinstance(value, list):
+        if value and sum(isinstance(item, dict) for item in value) >= max(1, len(value) // 2):
+            yield value
+        for item in value:
+            yield from _listas_de_dicts(item)
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _listas_de_dicts(item)
+
+
+def _htmls_em_json(value):
+    if isinstance(value, str) and "<" in value and ">" in value:
+        yield value
+    elif isinstance(value, list):
+        for item in value:
+            yield from _htmls_em_json(item)
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _htmls_em_json(item)
+
+
+def _extrair_json_generico(data, cfg_site):
+    """Extrai formatos JSON comuns sem aceitar registros sem URL de anúncio."""
+    best = []
+    for records in _listas_de_dicts(data):
+        items = []
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            raw_url = _valor_dict(
+                record,
+                ("url", "link", "permalink", "urlimovel", "urldetalhe", "detailurl"),
+            )
+            if not isinstance(raw_url, str) or _eh_arquivo_de_imagem(raw_url):
+                continue
+            property_url = urljoin(cfg_site["base_url"], raw_url)
+            title = _valor_dict(record, ("titulo", "title", "nome", "descricao", "description"))
+            raw_price = _valor_dict(
+                record,
+                ("preco", "price", "valor", "valoraluguel", "valorlocacao", "rent"),
+            )
+            image = _valor_dict(
+                record,
+                ("thumbnail", "thumbnailurl", "imagem", "image", "foto", "fotoprincipal"),
+            )
+            if isinstance(image, dict):
+                image = _valor_dict(image, ("url", "src", "thumbnail"))
+            neighborhood = _valor_dict(record, ("bairro", "neighborhood", "district"))
+            city = _valor_dict(record, ("cidade", "city", "municipio"))
+            neighborhood, city = normalizar_localizacao(
+                neighborhood, city, cfg_site.get("cidade_padrao")
+            )
+            items.append({
+                "url": property_url,
+                "titulo": str(title or "Imóvel para alugar"),
+                "tipo": normalizar_tipo(
+                    _valor_dict(record, ("tipo", "type", "tipoimovel", "propertytype"))
+                ),
+                "preco": _parse_preco(str(raw_price)) if raw_price is not None else None,
+                "bairro": neighborhood,
+                "cidade": city,
+                "thumbnail_url": (
+                    _normalizar_url_imagem(urljoin(cfg_site["base_url"], image))
+                    if isinstance(image, str) else None
+                ),
+            })
+        if len(items) > len(best):
+            best = items
+    return best
+
+
+def _raspar_com_api_aprendida(playwright, cfg_site, pag_cfg, headless):
+    """Reexecuta uma API GET aprendida; qualquer inconsistência força fallback."""
+    template = pag_cfg.get("url_template")
+    if not template or "{pagina}" not in template:
+        raise ValueError("A API aprendida não possui um modelo de página válido.")
+    browser = playwright.chromium.launch(headless=headless)
+    context = browser.new_context(
+        user_agent="Mozilla/5.0 (compatible; ImoveisScraperApp/1.0)"
+    )
+    page = context.new_page()
+    all_items, seen = [], set()
+    try:
+        page.goto(cfg_site["listagem_url"], timeout=45000, wait_until="domcontentloaded")
+        page.wait_for_timeout(1200)
+        _adicionar_itens_unicos(page, cfg_site, all_items, seen)
+        initial_count = len(seen)
+        start = int(pag_cfg.get("pagina_inicial", 2))
+        max_pages = int(pag_cfg.get("max_paginas", 100))
+        no_growth = 0
+        increment = int(pag_cfg.get("incremento", 1))
+        for index in range(max_pages):
+            number = start + index * increment
+            response = context.request.get(template.format(pagina=number), timeout=45000)
+            if not response.ok:
+                break
+            content_type = (response.headers.get("content-type") or "").lower()
+            body = response.body()
+            extracted = []
+            if "json" in content_type:
+                data = json.loads(body.decode("utf-8", errors="replace"))
+                extracted = _extrair_json_generico(data, cfg_site)
+                if not extracted:
+                    html_parts = list(_htmls_em_json(data))
+                    if html_parts:
+                        page.set_content(
+                            "<html><body>" + "\n".join(html_parts) + "</body></html>",
+                            wait_until="domcontentloaded",
+                        )
+                        extracted = _extrair_com_autocorrecao(page, cfg_site)
+            else:
+                page.set_content(body.decode("utf-8", errors="replace"), wait_until="domcontentloaded")
+                extracted = _extrair_com_autocorrecao(page, cfg_site)
+            new = 0
+            for item in extracted:
+                url = item.get("url")
+                if not url or url in seen:
+                    continue
+                seen.add(url)
+                all_items.append(item)
+                new += 1
+            no_growth = 0 if new else no_growth + 1
+            if no_growth >= int(pag_cfg.get("parar_sem_novos", 2)):
+                break
+        if len(seen) <= initial_count:
+            raise RuntimeError("A API aprendida não retornou anúncios novos.")
+        minimum = int(pag_cfg.get("min_itens_esperados", 0))
+        if minimum and len(seen) < minimum:
+            raise RuntimeError(
+                f"A API retornou apenas {len(seen)} anúncios; o mínimo seguro é {minimum}."
+            )
+        return _enriquecer_itens_incompletos(page, all_items)
+    finally:
+        browser.close()
+
+
+def _detectar_filtros_divisao(page):
+    """Encontra filtros publicados no DOM; não inventa valores nem URLs."""
+    try:
+        return page.evaluate(
+            """
+            () => {
+              const keyword = /(bairro|cidade|municip|regi[aã]o|tipo|quarto|pre[cç]o|valor)/i;
+              const stable = value => value && value.length < 70 && !/\\d{4,}/.test(value);
+              const css = el => {
+                if (stable(el.id)) return '#' + CSS.escape(el.id);
+                const name = el.getAttribute('name');
+                if (stable(name)) return `${el.tagName.toLowerCase()}[name="${CSS.escape(name)}"]`;
+                const classes = [...el.classList].filter(stable).slice(0, 3);
+                return el.tagName.toLowerCase() + classes.map(c => '.' + CSS.escape(c)).join('');
+              };
+              for (const select of document.querySelectorAll('select')) {
+                const identity = [select.name, select.id, select.getAttribute('aria-label')].filter(Boolean).join(' ');
+                const options = [...select.options]
+                  .filter(o => o.value && o.value !== '0' && o.value !== '-1')
+                  .slice(0, 60).map(o => ({value:o.value, label:(o.textContent || '').trim()}));
+                if (keyword.test(identity) && options.length >= 2)
+                  return {tipo:'select', seletor:css(select), opcoes:options, max_opcoes:60};
+              }
+              const groups = new Map();
+              for (const anchor of document.querySelectorAll('a[href]')) {
+                try {
+                  const url = new URL(anchor.href, location.href);
+                  if (url.origin !== location.origin) continue;
+                  for (const [key, value] of url.searchParams) {
+                    if (!keyword.test(key) || !value) continue;
+                    if (!groups.has(key)) groups.set(key, new Map());
+                    groups.get(key).set(value, url.href);
+                  }
+                } catch (_) {}
+              }
+              for (const [key, values] of groups) {
+                if (values.size >= 2 && values.size <= 60)
+                  return {tipo:'links', parametro:key, urls:[...values.values()]};
+              }
+              return null;
+            }
+            """
+        )
+    except Exception:
+        return None
+
+
+def _coletar_visualizacao_atual(page, cfg_site, pag_cfg):
+    kind = (pag_cfg or {}).get("tipo", "nenhuma")
+    if kind == "botao":
+        return _raspar_com_botao(page, cfg_site, pag_cfg)
+    if kind == "rolagem":
+        return _raspar_com_rolagem(page, cfg_site, pag_cfg)
+    return _enriquecer_itens_incompletos(
+        page, _extrair_com_autocorrecao(page, cfg_site)
+    )
+
+
+def _raspar_com_filtros_na_pagina(page, cfg_site, filter_cfg, pag_cfg):
+    """Percorre opções reais de filtro e une os resultados por URL."""
+    all_items, seen = [], set()
+    base_url = cfg_site["listagem_url"]
+    choices = []
+    if filter_cfg.get("tipo") == "links":
+        choices = [("url", url) for url in filter_cfg.get("urls", [])[:60]]
+    elif filter_cfg.get("tipo") == "select":
+        choices = [
+            ("option", option.get("value"))
+            for option in filter_cfg.get("opcoes", [])[: int(filter_cfg.get("max_opcoes", 60))]
+            if option.get("value") not in (None, "")
+        ]
+    if not choices:
+        return []
+
+    # Preserva também o lote sem filtro.
+    page.goto(base_url, timeout=45000, wait_until="domcontentloaded")
+    page.wait_for_timeout(800)
+    for item in _extrair_com_autocorrecao(page, cfg_site):
+        if item.get("url") and item["url"] not in seen:
+            seen.add(item["url"])
+            all_items.append(item)
+
+    for choice_type, value in choices:
+        try:
+            page.goto(base_url, timeout=45000, wait_until="domcontentloaded")
+            if choice_type == "url":
+                page.goto(value, timeout=45000, wait_until="domcontentloaded")
+            else:
+                page.select_option(filter_cfg["seletor"], value=str(value))
+                apply_selector = filter_cfg.get("aplicar_selector")
+                if apply_selector:
+                    button = page.query_selector(apply_selector)
+                    if button and button.is_visible():
+                        button.click()
+                else:
+                    page.eval_on_selector(
+                        filter_cfg["seletor"],
+                        "el => { el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }",
+                    )
+            page.wait_for_timeout(int(filter_cfg.get("espera_ms", 1400)))
+            for item in _coletar_visualizacao_atual(page, cfg_site, pag_cfg):
+                if item.get("url") and item["url"] not in seen:
+                    seen.add(item["url"])
+                    all_items.append(item)
+        except Exception:
+            continue
+    return all_items
 
 
 def _raspar_com_paginacao_url(playwright, cfg_site: dict, pag_cfg: dict, headless: bool):
-    pagina = pag_cfg.get("pagina_inicial", 1)
+    pagina_inicial = int(pag_cfg.get("pagina_inicial", 1))
+    incremento = int(pag_cfg.get("incremento", 1))
+    proxima_pagina = int(pag_cfg.get("proxima_pagina", pagina_inicial + incremento))
     max_paginas = pag_cfg.get("max_paginas", 20)
+    template = pag_cfg.get("url_template")
     todos_itens = []
     urls_vistas = set()
 
@@ -438,9 +1084,16 @@ def _raspar_com_paginacao_url(playwright, cfg_site: dict, pag_cfg: dict, headles
     page = browser.new_page(user_agent="Mozilla/5.0 (compatible; ImoveisScraperApp/1.0)")
 
     try:
-        for _ in range(max_paginas):
+        for indice in range(max_paginas):
+            pagina = pagina_inicial + indice * incremento
             listagem_url = cfg_site["listagem_url"]
-            if "{pagina}" in listagem_url:
+            if indice == 0 and template:
+                url_pagina = listagem_url
+            elif template:
+                url_pagina = template.format(
+                    pagina=proxima_pagina + (indice - 1) * incremento
+                )
+            elif "{pagina}" in listagem_url:
                 url_pagina = listagem_url.format(pagina=pagina)
             elif pagina == pag_cfg.get("pagina_inicial", 1):
                 url_pagina = listagem_url
@@ -466,7 +1119,6 @@ def _raspar_com_paginacao_url(playwright, cfg_site: dict, pag_cfg: dict, headles
             for item in novos:
                 urls_vistas.add(item["url"])
             todos_itens.extend(novos)
-            pagina += 1
         return _enriquecer_itens_incompletos(page, todos_itens)
     finally:
         browser.close()
@@ -508,10 +1160,43 @@ def _raspar_site(playwright, cfg_site: dict, headless=True):
     pag_cfg = cfg_site.get("paginacao", {})
     tipo_paginacao = pag_cfg.get("tipo", "nenhuma")
 
-    if tipo_paginacao == "url":
-        return _raspar_com_paginacao_url(playwright, cfg_site, pag_cfg, headless)
+    if tipo_paginacao == "api_aprendida":
+        try:
+            itens = _raspar_com_api_aprendida(playwright, cfg_site, pag_cfg, headless)
+            _registrar_historico_estrategia(
+                cfg_site.get("_site_key"), "api_reutilizada", pag_cfg,
+                imoveis=len({item.get("url") for item in itens if item.get("url")}),
+            )
+            return itens
+        except Exception as exc:
+            fallback = pag_cfg.get("fallback") or {"tipo": "auto"}
+            _registrar_historico_estrategia(
+                cfg_site.get("_site_key"), "api_falhou_fallback_navegador", pag_cfg,
+                erro=str(exc), fallback=fallback,
+            )
+            pag_cfg = fallback
+            tipo_paginacao = fallback.get("tipo", "auto")
 
-    # tipo "botao" ou "nenhuma": uma única página (com ou sem cliques em "ver mais")
+    if tipo_paginacao == "url":
+        try:
+            itens = _raspar_com_paginacao_url(playwright, cfg_site, pag_cfg, headless)
+            _registrar_historico_estrategia(
+                cfg_site.get("_site_key"), "paginacao_url_reutilizada", pag_cfg,
+                imoveis=len({item.get("url") for item in itens if item.get("url")}),
+            )
+            return itens
+        except Exception as exc:
+            fallback = pag_cfg.get("fallback")
+            if not fallback:
+                raise
+            _registrar_historico_estrategia(
+                cfg_site.get("_site_key"), "paginacao_url_falhou_fallback", pag_cfg,
+                erro=str(exc), fallback=fallback,
+            )
+            pag_cfg = fallback
+            tipo_paginacao = fallback.get("tipo", "auto")
+
+    # Tipos de página única, botão, rolagem ou detecção local automática.
     browser = playwright.chromium.launch(headless=headless)
     page = browser.new_page(user_agent="Mozilla/5.0 (compatible; ImoveisScraperApp/1.0)")
     try:
@@ -525,8 +1210,22 @@ def _raspar_site(playwright, cfg_site: dict, headless=True):
 
         _executar_acao_inicial(page, cfg_site)
 
-        if tipo_paginacao == "botao":
+        auto_local = os.getenv("IMOVEIS_AUTO_PAGINATION") == "1"
+        filtros = cfg_site.get("filtros") or {}
+        if filtros and filtros.get("ativo", True):
+            itens = _raspar_com_filtros_na_pagina(page, cfg_site, filtros, pag_cfg)
+            _registrar_historico_estrategia(
+                cfg_site.get("_site_key"), "filtros_reutilizados", pag_cfg,
+                filtros=filtros,
+                imoveis=len({item.get("url") for item in itens if item.get("url")}),
+            )
+        elif tipo_paginacao == "botao":
             itens = _raspar_com_botao(page, cfg_site, pag_cfg)
+        elif tipo_paginacao == "rolagem":
+            itens = _raspar_com_rolagem(page, cfg_site, pag_cfg)
+        elif auto_local and tipo_paginacao in {"nenhuma", "auto", ""}:
+            itens, estrategia = _raspar_com_deteccao_automatica(page, cfg_site)
+            _salvar_paginacao_aprendida(cfg_site.get("_site_key"), estrategia)
         else:
             itens = _enriquecer_itens_incompletos(page, _extrair_com_autocorrecao(page, cfg_site))
     finally:
@@ -573,11 +1272,11 @@ def rodar_varredura(
     total_coletado = 0
     erros = []
     selecionados = [
-        (site_key, cfg_site)
+        (site_key, {**cfg_site, "_site_key": site_key})
         for site_key, cfg_site in cfg["sites"].items()
         if not sites_filtrados or site_key in sites_filtrados
     ]
-    trabalhadores = max(1, min(int(max_workers or 1), 4, len(selecionados) or 1))
+    trabalhadores = max(1, min(int(max_workers or 1), 16, len(selecionados) or 1))
 
     with ThreadPoolExecutor(
         max_workers=trabalhadores,
