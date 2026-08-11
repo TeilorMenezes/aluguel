@@ -1,5 +1,3 @@
-import subprocess
-import sys
 import hmac
 import html
 import re
@@ -30,45 +28,11 @@ from descobrir_sites import (
     remover_da_quarentena,
     registrar_quarentena,
 )
-from publicacao_local import diagnosticar_publicacao, publicar_configuracoes
-from scheduler_runner import (
-    coletar_sites_sem_dados_async,
-    iniciar_agendador,
-    rodar_agora_async,
-    rodar_site_agora_async,
-)
 
 st.set_page_config(page_title="Mapa do Aluguel", layout="wide", page_icon="🏠")
 
 
-@st.cache_resource
-def garantir_chromium_instalado():
-    """No Streamlit Community Cloud não existe um passo manual de
-    'playwright install chromium' — então instalamos aqui, uma única vez
-    por sessão do servidor (cacheado). No seu PC local isso é ignorado
-    rapidamente, pois o Chromium já está instalado."""
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "playwright", "install", "chromium"],
-            check=False,
-            capture_output=True,
-            timeout=300,
-        )
-    except Exception:
-        pass
-    return True
-
-
-garantir_chromium_instalado()
-
-db.init_db()
-db.remover_duplicata_diferencial()
-ROBO_LOCAL_ATIVO = diagnosticar_publicacao()["disponivel"]
-iniciar_agendador(
-    max_workers=2 if ROBO_LOCAL_ATIVO else 1,
-    max_tentativas=3,
-)  # cacheado por processo
-coletar_sites_sem_dados_async()
+db.init_public_db()
 
 # -----------------------------------------------------------------------
 # Estilos (thumbnail com selo redondo da imobiliária)
@@ -657,6 +621,8 @@ div[data-testid="stForm"] button[kind="primaryFormSubmit"] {
 
 def _renderizar_operacoes_admin():
     """Ações que só podem ser exibidas após autenticação administrativa."""
+    st.info("Esta operação foi transferida para o Agente de Expansão local.")
+    return
     st.subheader("🔒 Administração")
     st.caption("As alterações de configuração e a atualização manual ficam restritas a administradores.")
     if ROBO_LOCAL_ATIVO:
@@ -1104,6 +1070,8 @@ def _chave_site_disponivel(host, sites):
 
 
 def _renderizar_quarentena_admin():
+    st.info("A quarentena agora é revisada no Agente de Expansão local.")
+    return
     st.subheader("Quarentena")
     st.caption(
         "Sites reprovados automaticamente ficam aqui para correção. "
@@ -1268,6 +1236,8 @@ def _renderizar_quarentena_admin():
 
 
 def _renderizar_publicacao_local_admin():
+    st.info("A publicação agora é preparada no Agente de Expansão local.")
+    return
     st.subheader("Publicar no site")
     st.caption(
         "Use esta área no seu computador depois de atualizar, descobrir e aprovar "
@@ -1323,16 +1293,25 @@ def _renderizar_publicacao_local_admin():
 
 
 def renderizar_administracao():
-    """Ações exibidas somente após autenticação administrativa."""
-    aba_operacoes, aba_quarentena, aba_publicacao = st.tabs(
-        ["Atualização e descoberta", "Quarentena", "Publicar no site"]
+    """Explica o fluxo seguro; o site público nunca executa coletores."""
+    st.subheader("Administração pelo Agente de Expansão")
+    st.info(
+        "A raspagem automática foi desativada neste site. Para atualizar o "
+        "catálogo, execute a coleta no Agente de Expansão instalado no seu "
+        "computador, revise a prévia e publique o snapshot por pull request."
     )
-    with aba_operacoes:
-        _renderizar_operacoes_admin()
-    with aba_quarentena:
-        _renderizar_quarentena_admin()
-    with aba_publicacao:
-        _renderizar_publicacao_local_admin()
+    st.markdown(
+        """
+        1. Abra o **Agente de Expansão local**.
+        2. Entre em **Raspar e visualizar** e execute a coleta desejada.
+        3. Revise os imóveis e prepare uma substituição completa ou parcial.
+        4. Em **Publicar**, crie o pull request e faça o merge após a revisão.
+
+        Quando o novo snapshot entrar na branch `main`, o site reconhecerá a
+        nova versão e substituirá o banco anterior automaticamente. Nenhuma
+        imobiliária é acessada pelo servidor público.
+        """
+    )
 
 
 def renderizar_landing(cidades):

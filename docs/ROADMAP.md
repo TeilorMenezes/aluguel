@@ -16,6 +16,8 @@ Objetivo: preservar o que já existe e estabelecer uma única direção.
 - [ ] Revisar o diff funcional do agente antes de merge.
 - [ ] Criar pull request somente após autorização do usuário.
 - [ ] Definir quais partes experimentais entram na primeira integração.
+- [x] Impedir que o site público execute coleta e consumir somente snapshot revisado
+  (implementado na branch; publicação pendente de autorização).
 
 Gate de saída: branch revisada, testes verdes, nenhum dado administrativo
 versionado e plano de integração aprovado.
@@ -39,7 +41,7 @@ rollback documentado.
 Objetivo: tornar a coleta auditável e independente do site.
 
 - Criar observações históricas de preço e disponibilidade.
-- Separar worker e agendador do processo Streamlit.
+- Remover o módulo legado de agendamento, já desativado no processo Streamlit.
 - Adicionar fila, identificador de execução, métricas e alertas.
 - Criar painel de saúde das fontes e política por domínio.
 - Implementar backup e teste de restauração.

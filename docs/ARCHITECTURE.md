@@ -7,17 +7,18 @@ O repositório contém um MVP funcional e um agente administrativo experimental.
 | Componente | Implementação atual |
 |---|---|
 | Site público | Streamlit em `app.py` |
-| Coleta | Playwright/HTTP em `scraper.py` |
+| Coleta | Playwright/HTTP em `scraper.py`, executado pelo agente local |
 | Descoberta | `descobrir_sites.py` e dados públicos de CNPJ |
 | Banco | SQLite em `db.py` |
-| Agendamento | APScheduler no processo do Streamlit |
+| Agendamento | legado disponível no código, não iniciado pelo site público |
 | Configuração | `sites_config.yaml` e overrides aprovados |
 | Administração avançada | `agente_expansao/` local e separado |
 | Snapshot público | `snapshot_publico.py` e `public_data/` |
 
-Essa base é apropriada para validação local, mas site, agendador, coleta e banco
-ainda compartilham ciclo de vida. O arquivo público principal também concentra
-interface, autenticação e operação.
+Nesta branch, o site público opera em modo somente leitura sobre o snapshot versionado. O
+agente local mantém coleta, revisão e publicação em ciclo separado. O código
+legado de agendamento ainda existe para remoção incremental, mas não é importado
+nem iniciado pelo processo público.
 
 ## Arquitetura-alvo
 
@@ -71,8 +72,11 @@ auditoria e indicadores.
 ## Invariantes técnicos
 
 - O worker nunca escreve diretamente na interface pública.
+- O processo público nunca inicia Playwright, scheduler ou coleta manual.
 - Publicação exige lote validado e aprovação explícita.
 - Snapshot público contém apenas o contrato mínimo documentado.
+- Um checksum novo substitui atomicamente o banco efêmero anterior; o mesmo
+  snapshot não é reaplicado em cada rerun.
 - Banco administrativo e banco público são separados.
 - Estratégia aprendida conserva fallback e histórico de validação.
 - Uma resposta vazia não promove estratégia nem remove catálogo anterior.
@@ -94,7 +98,8 @@ auditoria e indicadores.
 ## Restrições atuais conhecidas
 
 - A autenticação administrativa usa uma senha compartilhada.
-- O agendamento ainda está acoplado ao Streamlit e não declara fuso.
+- O módulo legado de agendamento ainda existe, embora não seja carregado pelo
+  Streamlit público, e ainda não declara fuso.
 - Dependências usam limites mínimos, não um lock reproduzível.
 - Cobertura de testes é focada no backend e não mede UX ou coleta real contínua.
 - O snapshot SQLite é uma ponte operacional, não o banco final de produção.

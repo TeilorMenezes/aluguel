@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import yaml
 
+import db
 import scraper
 import snapshot_publico
 from agente_expansao import collection
@@ -54,6 +55,14 @@ def row(site, number):
 
 
 class PublicSnapshotTest(unittest.TestCase):
+    def test_public_app_uses_snapshot_without_starting_scheduler(self):
+        source = (Path(__file__).parents[1] / "app.py").read_text(encoding="utf-8")
+        startup = source.split("# -----------------------------------------------------------------------", 1)[0]
+        self.assertIn("db.init_public_db()", startup)
+        self.assertNotIn("scheduler_runner", startup)
+        self.assertNotIn("iniciar_agendador", startup)
+        self.assertNotIn("coletar_sites_sem_dados_async", startup)
+
     def test_complete_snapshot_has_manifest_and_public_schema_only(self):
         with tempfile.TemporaryDirectory() as temp:
             temp = Path(temp)
@@ -106,7 +115,7 @@ class PublicSnapshotTest(unittest.TestCase):
             self.assertFalse(result["valid"])
             self.assertTrue(any("Checksum" in error for error in result["errors"]))
 
-    def test_public_snapshot_is_copied_only_when_runtime_db_is_absent(self):
+    def test_public_snapshot_is_copied_once_per_version(self):
         with tempfile.TemporaryDirectory() as temp:
             temp = Path(temp)
             source, public_db, manifest = temp / "source.db", temp / "public.db", temp / "manifest.json"
@@ -119,6 +128,65 @@ class PublicSnapshotTest(unittest.TestCase):
             ):
                 self.assertTrue(snapshot_publico.install_public_snapshot_if_needed(target))
                 self.assertFalse(snapshot_publico.install_public_snapshot_if_needed(target))
+
+    def test_new_snapshot_replaces_existing_runtime_database(self):
+        with tempfile.TemporaryDirectory() as temp:
+            temp = Path(temp)
+            old_source, new_source = temp / "old.db", temp / "new.db"
+            public_db, manifest = temp / "public.db", temp / "manifest.json"
+            target = temp / "runtime" / "imoveis.db"
+            make_source(old_source, [row("a", 1)])
+            make_source(new_source, [row("a", 1), row("b", 2)])
+            target.parent.mkdir(parents=True)
+            old_source.replace(target)
+            create_snapshot(new_source, public_db, manifest)
+            with (
+                patch.object(snapshot_publico, "PUBLIC_DB_PATH", public_db),
+                patch.object(snapshot_publico, "PUBLIC_MANIFEST_PATH", manifest),
+            ):
+                self.assertTrue(snapshot_publico.install_public_snapshot_if_needed(target))
+                self.assertFalse(snapshot_publico.install_public_snapshot_if_needed(target))
+            with closing(sqlite3.connect(target)) as conn:
+                self.assertEqual(conn.execute("SELECT COUNT(*) FROM imoveis").fetchone()[0], 2)
+
+    def test_new_snapshot_replaces_database_open_for_reading(self):
+        with tempfile.TemporaryDirectory() as temp:
+            temp = Path(temp)
+            old_source, new_source = temp / "old.db", temp / "new.db"
+            public_db, manifest = temp / "public.db", temp / "manifest.json"
+            target = temp / "runtime" / "imoveis.db"
+            make_source(old_source, [row("a", 1)])
+            make_source(new_source, [row("a", 1), row("b", 2)])
+            target.parent.mkdir(parents=True)
+            old_source.replace(target)
+            create_snapshot(new_source, public_db, manifest)
+            open_reader = sqlite3.connect(target)
+            try:
+                open_reader.execute("SELECT COUNT(*) FROM imoveis").fetchone()
+                with (
+                    patch.object(snapshot_publico, "PUBLIC_DB_PATH", public_db),
+                    patch.object(snapshot_publico, "PUBLIC_MANIFEST_PATH", manifest),
+                ):
+                    self.assertTrue(snapshot_publico.install_public_snapshot_if_needed(target))
+            finally:
+                open_reader.close()
+            with closing(sqlite3.connect(target)) as conn:
+                self.assertEqual(conn.execute("SELECT COUNT(*) FROM imoveis").fetchone()[0], 2)
+
+    def test_public_initialization_does_not_create_collection_tables(self):
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp) / "runtime.db"
+            with patch.object(db, "DB_PATH", target):
+                db.init_public_db()
+            with closing(sqlite3.connect(target)) as conn:
+                tables = {
+                    item[0] for item in conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    )
+                }
+            self.assertIn("imoveis", tables)
+            self.assertNotIn("execucoes", tables)
+            self.assertNotIn("coletas_site", tables)
 
 
 class DiscoveryAndOverrideTest(unittest.TestCase):

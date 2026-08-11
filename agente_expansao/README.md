@@ -51,8 +51,9 @@ altera produção diretamente.
 - `public_data/imoveis.db`: snapshot que o site passa a usar depois do merge.
 
 O snapshot público contém somente dados já públicos dos anúncios. O Streamlit
-continua executando sua coleta natural e pode atualizar esse banco durante a
-sessão; o snapshot serve como base inicial confiável em cada deploy.
+público não executa raspagem: ele lê exclusivamente o snapshot aprovado. Quando
+o checksum do manifesto muda após um merge, o banco efêmero anterior é
+substituído atomicamente.
 
 ## Capacidade e paginação automáticas
 

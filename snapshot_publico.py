@@ -5,6 +5,7 @@ import hashlib
 import json
 import shutil
 import sqlite3
+import threading
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,7 @@ PUBLIC_DIR = ROOT / "public_data"
 PUBLIC_DB_PATH = PUBLIC_DIR / "imoveis.db"
 PUBLIC_MANIFEST_PATH = PUBLIC_DIR / "manifest.json"
 SCHEMA_VERSION = 1
+_INSTALL_LOCK = threading.Lock()
 
 PUBLIC_COLUMNS = (
     "site_key", "imobiliaria", "logo_url", "url", "titulo", "tipo", "preco",
@@ -245,13 +247,49 @@ def create_snapshot(
 
 
 def install_public_snapshot_if_needed(target_db: str | Path) -> bool:
-    """Inicializa o banco efêmero do Streamlit a partir do snapshot versionado."""
+    """Instala atomicamente o snapshot quando sua versão publicada mudar.
+
+    O arquivo de marcação identifica qual checksum já foi aplicado. Isso evita
+    substituir o banco em cada rerun do Streamlit, mas permite que um snapshot
+    novo substitua um banco efêmero antigo que tenha sobrevivido ao deploy.
+    """
     target_db = Path(target_db)
-    if target_db.exists() or not PUBLIC_DB_PATH.is_file():
+    if not PUBLIC_DB_PATH.is_file():
         return False
     validation = validate_snapshot(PUBLIC_DB_PATH, PUBLIC_MANIFEST_PATH)
     if not validation["valid"]:
         return False
-    target_db.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(PUBLIC_DB_PATH, target_db)
-    return True
+    checksum = validation["sha256"]
+    marker = target_db.with_suffix(target_db.suffix + ".snapshot.sha256")
+
+    with _INSTALL_LOCK:
+        applied = marker.read_text(encoding="ascii").strip() if marker.is_file() else ""
+        if target_db.is_file() and _has_public_table(target_db) and applied == checksum:
+            return False
+
+        target_db.parent.mkdir(parents=True, exist_ok=True)
+        temporary_db = target_db.with_suffix(target_db.suffix + ".snapshot.tmp")
+        temporary_marker = marker.with_suffix(marker.suffix + ".tmp")
+        try:
+            if temporary_db.exists():
+                temporary_db.unlink()
+            shutil.copy2(PUBLIC_DB_PATH, temporary_db)
+            copied = validate_snapshot(temporary_db, PUBLIC_MANIFEST_PATH)
+            if not copied["valid"]:
+                return False
+            try:
+                temporary_db.replace(target_db)
+            except PermissionError:
+                # No Windows, uma sessão de leitura pode manter o arquivo aberto.
+                # O backup nativo do SQLite substitui o conteúdo dentro de uma
+                # transação consistente sem exigir a troca do arquivo aberto.
+                with _connect(temporary_db) as source, _connect(target_db) as target:
+                    source.backup(target)
+            temporary_marker.write_text(checksum + "\n", encoding="ascii")
+            temporary_marker.replace(marker)
+            return True
+        finally:
+            if temporary_db.exists():
+                temporary_db.unlink()
+            if temporary_marker.exists():
+                temporary_marker.unlink()
