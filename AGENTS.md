@@ -31,6 +31,26 @@ afetada dentro do escopo da tarefa. Não invente comportamento ausente.
 - Não crie novos agentes, serviços, dependências ou abstrações sem necessidade
   concreta para o objetivo atual.
 
+## Agentes personalizados
+
+O chat principal atua como orquestrador. Especialistas persistentes estão
+configurados em `.codex/agents/` e documentados em `docs/ORCHESTRATION.md`:
+
+- `plataforma_dados`
+- `coleta_fontes`
+- `frontend_ux_seo`
+- `qualidade_release`
+- `seguranca_compliance`
+- `devops_confiabilidade`
+- `analytics_mercado`
+- `growth_conteudo`
+
+Delegue somente trabalho independente e delimitado. O contrato de delegação deve
+informar objetivo, arquivos permitidos e proibidos, critérios de aceitação,
+validações e formato do handoff. O limite do projeto é de três subagentes ativos,
+além do orquestrador. Especialistas não podem redelegar, publicar ou ampliar o
+escopo sem autorização explícita.
+
 ## Limites de aprovação
 
 Análises e diagnósticos autorizam somente leitura e validações não destrutivas.
