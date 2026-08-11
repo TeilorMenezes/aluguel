@@ -1321,7 +1321,7 @@ def rodar_varredura(
                 item = {
                     "site_key": site_key,
                     "imobiliaria": cfg_site["nome"],
-                    "logo_url": cfg_site["logo"],
+                    "logo_url": cfg_site.get("logo", ""),
                     "url": bruto["url"],
                     "titulo": bruto["titulo"],
                     "tipo": bruto["tipo"],
