@@ -118,3 +118,22 @@ sites:
       itens_observados: 111
       min_itens_esperados: 88
     estrategia_atualizada_em: '2026-08-10T19:23:47-03:00'
+  dommusimoveis:
+    nome: DOMMUS SOLUCOES IMOBILIARIAS LTDA
+    base_url: https://www.dommusimoveis.com.br
+    cidade_padrao: Ipatinga
+    paginacao:
+      tipo: rolagem
+      max_rolagens: 80
+      espera_apos_rolagem_ms: 1400
+      parar_sem_novos: 3
+      aprendida_manualmente: true
+    listagem_url: https://www.dommusimoveis.com.br/imoveis/para-alugar/brasil?order=maior_preco
+    espera_seletor: div.ImovelCard_card__2FVbS
+    seletores:
+      card: div.ImovelCard_card__2FVbS
+      link: a
+      titulo: span.ImovelCardInfo_colorOfTitleCondominium__IfTu_.ImovelCardInfo_ellipsisOneLine__ryU_Q.d-flex.flex-row
+      preco: h3.d-flex.flex-column.justify-content-center.flex-grow-1
+      thumbnail: img
+    aprendido_em: '2026-08-11T16:11:30-03:00'
