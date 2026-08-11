@@ -2768,6 +2768,7 @@ def renderizar_resultados_v2():
         st.session_state["pagina_resultados_v2"] = 1
 
     itens_por_pagina = 30
+    incluir_sem_preco = faixa[0] == 0.0 and faixa[1] == preco_maximo
     total_imoveis = db.contar_imoveis(
         preco_min=faixa[0],
         preco_max=faixa[1],
@@ -2775,6 +2776,7 @@ def renderizar_resultados_v2():
         cidades=cidades_consulta,
         tipos=tipos_consulta,
         imobiliarias=imobiliarias_selecionadas or None,
+        incluir_sem_preco=incluir_sem_preco,
     )
     total_paginas = max(1, (total_imoveis + itens_por_pagina - 1) // itens_por_pagina)
     pagina_atual = min(
@@ -2793,6 +2795,7 @@ def renderizar_resultados_v2():
         ordenar_por=ordem_banco,
         limite=itens_por_pagina,
         deslocamento=(pagina_atual - 1) * itens_por_pagina,
+        incluir_sem_preco=incluir_sem_preco,
     )
     primeiro_item = (pagina_atual - 1) * itens_por_pagina + 1 if total_imoveis else 0
     ultimo_item = min(pagina_atual * itens_por_pagina, total_imoveis)
