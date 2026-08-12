@@ -1,17 +1,46 @@
 {
   "schema_version": 1,
-  "created_at": "2026-08-12T15:50:17-03:00",
+  "created_at": "2026-08-12T18:51:56-03:00",
   "mode": "complete",
   "selected_site_keys": [],
-  "total": 80,
+  "total": 2763,
   "agencies": {
-    "mercantilimoveis": 80
+    "alfenasimoveis": 42,
+    "allex": 91,
+    "arthusoimoveis": 4,
+    "attria": 1275,
+    "buskaza": 20,
+    "catedral": 110,
+    "certa": 12,
+    "cirsa": 107,
+    "correta": 6,
+    "delasimoveis": 2,
+    "diferencial": 275,
+    "diferencialimoveismg": 3,
+    "dommusimoveis": 75,
+    "dudaimoveis": 97,
+    "estadodeminas": 2,
+    "eugeniolopes": 89,
+    "ferreira": 24,
+    "imobiliariajj": 12,
+    "jfcorretor": 7,
+    "lopescontagem": 16,
+    "me_imobiliaria": 26,
+    "mercantilimoveis": 80,
+    "minas_caixa": 27,
+    "negociarimoveis": 20,
+    "netimoveis": 5,
+    "oliveira": 103,
+    "portal_imoveis": 151,
+    "portal_timoteo": 9,
+    "realize": 70,
+    "vivendabrumadinho": 3
   },
   "quality": {
     "titulo": 1.0,
-    "preco": 0.963,
-    "imagem": 1.0,
+    "preco": 0.991,
+    "imagem": 0.994,
     "link": 1.0
   },
-  "sha256": "9dbad799afb12fd33a6d28d1932c3650e4fad29e9c97b37cab1b2d07fdea6675"
+  "sha256": "7ce09aac7bc5aaac5ae24b6495730b6723c59a9b1e7f3f8d19a3b7ba3d849687"
 }
