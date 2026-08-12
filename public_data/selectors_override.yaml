@@ -161,3 +161,130 @@ sites:
       thumbnail_attr: style
     filtros: {}
     aprendido_em: '2026-08-12T15:30:19-03:00'
+  attria:
+    paginacao:
+      tipo: api_aprendida
+      url_template: https://www.attria.com.br/aluguel/mg?page={pagina}&counter=true
+      pagina_inicial: 2
+      incremento: 1
+      max_paginas: 100
+      parar_sem_novos: 2
+      formato: auto
+      fallback:
+        tipo: botao
+        botao_selector: a[rel='next']
+        max_cliques: 50
+        espera_apos_clique_ms: 1600
+        parar_sem_novos: 2
+        aprendida_automaticamente: true
+      aprendida_automaticamente: true
+      apis_observadas:
+      - https://www.attria.com.br/aluguel/mg?page=2&counter=true
+      - https://www.attria.com.br/aluguel/mg?page=3&counter=true
+      - https://www.attria.com.br/aluguel/mg?page=4&counter=true
+      - https://www.attria.com.br/aluguel/mg?page=5&counter=true
+      - https://www.attria.com.br/aluguel/mg?page=6&counter=true
+      - https://www.attria.com.br/aluguel/mg?page=7&counter=true
+      - https://www.attria.com.br/aluguel/mg?page=8&counter=true
+      - https://www.attria.com.br/aluguel/mg?page=9&counter=true
+      - https://www.attria.com.br/aluguel/mg?page=10&counter=true
+      - https://www.attria.com.br/aluguel/mg?page=11&counter=true
+      itens_observados: 1275
+      min_itens_esperados: 1020
+    estrategia_atualizada_em: '2026-08-12T16:07:16-03:00'
+  dudaimoveis:
+    paginacao:
+      tipo: botao
+      botao_selector: a.\!max-w-full.\!w-full.btn-btn-1.flex
+      max_cliques: 50
+      espera_apos_clique_ms: 1600
+      parar_sem_novos: 2
+      aprendida_automaticamente: true
+    estrategia_atualizada_em: '2026-08-12T16:12:41-03:00'
+  eugeniolopes:
+    paginacao:
+      tipo: url
+      url_template: https://eugeniolopes.com.br/aluguel/page/{pagina}/?status=aluguel
+      pagina_inicial: 1
+      proxima_pagina: 2
+      incremento: 1
+      max_paginas: 100
+      parar_sem_novos: 1
+      fallback:
+        tipo: botao
+        botao_selector: a[rel='next']
+        max_cliques: 50
+        espera_apos_clique_ms: 1600
+        parar_sem_novos: 2
+        aprendida_automaticamente: true
+      aprendida_automaticamente: true
+    estrategia_atualizada_em: '2026-08-12T16:14:36-03:00'
+  alfenasimoveis:
+    filtros:
+      tipo: select
+      seletor: '#cidade'
+      opcoes:
+      - value: regiao-de-contagem
+        label: Todos
+      - value: azurita
+        label: AZURITA
+      - value: belo-horizonte
+        label: Belo Horizonte
+      - value: betim
+        label: BETIM
+      - value: brumadinho
+        label: Brumadinho
+      - value: caldas-novas
+        label: Caldas Novas
+      - value: centro-contagem
+        label: CENTRO-CONTAGEM
+      - value: claudio
+        label: Cláudio
+      - value: contagem
+        label: Contagem
+      - value: curvelo
+        label: CURVELO
+      - value: esmeraldas
+        label: ESMERALDAS
+      - value: ibirite
+        label: IBIRITE
+      - value: igarape
+        label: IGARAPE
+      - value: itaguara
+        label: ITAGUARA
+      - value: itatiaiucu
+        label: Itatiaiuçu
+      - value: jaboticatubas
+        label: JABOTICATUBAS
+      - value: juatuba
+        label: JUATUBA
+      - value: lagoa-santa
+        label: LAGOA SANTA
+      - value: mariana
+        label: MARIANA
+      - value: mateus-leme
+        label: MATEUS LEME
+      - value: piedade-dos-gerais
+        label: piedade dos gerais
+      - value: planura
+        label: Planura
+      - value: ponte-nova
+        label: PONTE NOVA
+      - value: ribeirao-das-neves
+        label: RIBEIRAO DAS NEVES
+      - value: rio-acima
+        label: RIO ACIMA
+      - value: sabara
+        label: SABARA
+      - value: santa-luzia
+        label: SANTA LUZIA
+      - value: sao-joaquim-de-bicas
+        label: SAO JOAQUIM DE BICAS
+      - value: sarzedo
+        label: Sarzedo
+      - value: sete-lagoas
+        label: SETE LAGOAS
+      - value: tres-coracoes
+        label: TRES CORACOES
+      max_opcoes: 60
+    estrategia_atualizada_em: '2026-08-12T16:17:39-03:00'
