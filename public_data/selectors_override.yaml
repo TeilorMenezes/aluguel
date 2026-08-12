@@ -137,3 +137,27 @@ sites:
       preco: h3.d-flex.flex-column.justify-content-center.flex-grow-1
       thumbnail: img
     aprendido_em: '2026-08-11T16:11:30-03:00'
+  mercantilimoveis:
+    nome: Mercantil Imóveis
+    base_url: https://www.mercantilimoveis.com.br
+    cidade_padrao: Ipatinga
+    paginacao:
+      tipo: url
+      url_template: https://mercantilimoveis.com.br/pesquisa-imoveis/page/{pagina}/?status%5B0%5D=aluguel
+      pagina_inicial: 1
+      proxima_pagina: 2
+      incremento: 1
+      max_paginas: 100
+      parar_sem_novos: 1
+      aprendida_manualmente: true
+    listagem_url: https://mercantilimoveis.com.br/pesquisa-imoveis/?status%5B0%5D=aluguel
+    espera_seletor: article.rh_list_card
+    seletores:
+      card: article.rh_list_card
+      link: a
+      titulo: h3
+      preco: p.price
+      thumbnail: div.post_thumbnail
+      thumbnail_attr: style
+    filtros: {}
+    aprendido_em: '2026-08-12T15:30:19-03:00'
