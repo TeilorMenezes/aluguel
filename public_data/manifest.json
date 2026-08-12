@@ -1,31 +1,17 @@
 {
   "schema_version": 1,
-  "created_at": "2026-08-11T17:48:38-03:00",
+  "created_at": "2026-08-12T15:50:17-03:00",
   "mode": "complete",
   "selected_site_keys": [],
-  "total": 1101,
+  "total": 80,
   "agencies": {
-    "allex": 91,
-    "catedral": 110,
-    "certa": 12,
-    "cirsa": 109,
-    "correta": 7,
-    "diferencial": 279,
-    "dommusimoveis": 74,
-    "ferreira": 24,
-    "jfcorretor": 7,
-    "me_imobiliaria": 26,
-    "minas_caixa": 29,
-    "oliveira": 103,
-    "portal_imoveis": 151,
-    "portal_timoteo": 9,
-    "realize": 70
+    "mercantilimoveis": 80
   },
   "quality": {
     "titulo": 1.0,
-    "preco": 0.986,
+    "preco": 0.963,
     "imagem": 1.0,
     "link": 1.0
   },
-  "sha256": "c6ab12ed0a7a724843f4155eb8d1def2534f92d1c60209f39110fc76cd0aad6f"
+  "sha256": "9dbad799afb12fd33a6d28d1932c3650e4fad29e9c97b37cab1b2d07fdea6675"
 }
