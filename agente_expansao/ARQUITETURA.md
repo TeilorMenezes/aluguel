@@ -46,6 +46,12 @@ Correções visuais ficam inicialmente em
 cópia revisada vai para `public_data/selectors_override.yaml`, que é mesclada
 pelo scraper sem apagar o `sites_config.yaml`.
 
+O editor de configurações aprendidas valida URL, origem e seletores CSS antes de
+gravar o YAML local atomicamente. Cada salvamento ou restauração gera um evento
+append-only em `data/selector_config_history.jsonl`, com estado anterior e novo,
+validação e justificativa. A cópia do override na proposta é imutável: se o
+override local divergir, a publicação é bloqueada até gerar nova prévia.
+
 ## Componentes
 
 - `storage.py`: SQLite, histórico, erros, correções e publicações.

@@ -12,7 +12,8 @@ from urllib.parse import urlparse
 import yaml
 
 from .config import CONFIRMATION_PHRASE, PROJECT_ROOT, TARGET_REPOSITORY
-from .config import PROPOSAL_DB_PATH, PROPOSAL_MANIFEST_PATH, PROPOSAL_OVERRIDE_PATH
+from .config import LOCAL_OVERRIDE_PATH, PROPOSAL_DB_PATH, PROPOSAL_MANIFEST_PATH, PROPOSAL_OVERRIDE_PATH
+from .selector_config import proposal_override_is_stale
 from snapshot_publico import validate_snapshot
 
 
@@ -174,6 +175,8 @@ def publish_snapshot_pull_request(confirmation: str) -> dict:
         raise ValueError("Snapshot inválido: " + " ".join(validation.get("errors", [])))
     if not PROPOSAL_OVERRIDE_PATH.is_file():
         raise ValueError("Arquivo de aprendizado dos seletores ausente.")
+    if proposal_override_is_stale(LOCAL_OVERRIDE_PATH, PROPOSAL_OVERRIDE_PATH):
+        raise ValueError("A configuração aprendida mudou. Gere uma nova prévia antes de publicar.")
     diagnosis = diagnose()
     if not diagnosis["available"]:
         raise RuntimeError(diagnosis["reason"])

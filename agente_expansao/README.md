@@ -78,6 +78,13 @@ o painel oferece retomar as imobiliárias pendentes ou descartar esse progresso.
 O histórico de estratégias aprendidas, reutilizadas e rejeitadas fica somente em
 `data/strategy_history.jsonl`.
 
+Configurações aprendidas também podem ser revisadas na aba **Ensinar manualmente**.
+O editor aceita seletores CSS, mantém campos desconhecidos, testa antes de salvar e
+registra cada alteração ou restauração em `data/selector_config_history.jsonl`.
+Salvar uma configuração que não passou no teste exige confirmação e justificativa.
+Uma prévia já preparada permanece congelada: depois de editar, gere uma nova prévia
+antes de publicar.
+
 Na aba **Ensinar manualmente**, além dos cinco campos do card, o administrador
 escolhe visualmente entre descoberta automática, botão “carregar mais”, rolagem,
 próxima página, filtros ou página única. Nenhum DevTools é necessário.

@@ -8,6 +8,7 @@ import db
 import scraper
 from agente_expansao import resources
 from agente_expansao import collection
+from agente_expansao import selector_config
 from agente_expansao.visual_picker import _navigation_config
 
 
@@ -46,6 +47,146 @@ class _BotaoMais:
 
 
 class RoboLocalTest(unittest.TestCase):
+    def test_editor_lists_overrides_and_preserves_unknown_fields(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "override.yaml"
+            history = Path(folder) / "history.jsonl"
+            path.write_text(
+                "sites:\n  exemplo:\n    nome: Exemplo\n    base_url: https://exemplo.test\n"
+                "    listagem_url: https://exemplo.test/aluguel\n    seletores:\n"
+                "      card: .card\n      link: a\n      titulo: h2\n      preco: .preco\n"
+                "      thumbnail: img\n      desconhecido: .extra\n    paginacao:\n      tipo: botao\n      limite_desconhecido: 7\n",
+                encoding="utf-8",
+            )
+            listed = selector_config.list_persisted_overrides(path)
+            draft = {"listagem_url": "https://exemplo.test/aluguel-2", "seletores": {"card": ".novo"}}
+            saved = selector_config.save_edited_override(
+                "exemplo", draft, tested_signature=selector_config.config_signature({**listed["exemplo"], **draft, "seletores": {**listed["exemplo"]["seletores"], **draft["seletores"]}}),
+                test_result={"publicavel": True}, path=path, history_path=history,
+            )
+            self.assertEqual(saved["seletores"]["desconhecido"], ".extra")
+            self.assertEqual(saved["paginacao"]["limite_desconhecido"], 7)
+            self.assertEqual(saved["espera_seletor"], ".novo")
+
+    def test_editor_rejects_unsafe_url_css_and_navigation(self):
+        base = {
+            "base_url": "https://exemplo.test", "listagem_url": "https://outro.test/aluguel",
+            "seletores": {"card": ".card", "link": "a", "titulo": "h2", "preco": ".preco", "thumbnail": "img"},
+        }
+        with self.assertRaises(ValueError):
+            selector_config.validate_override(base)
+        base["listagem_url"] = "https://exemplo.test/aluguel"
+        base["seletores"]["card"] = "//div"
+        with self.assertRaises(ValueError):
+            selector_config.validate_override(base)
+        base["seletores"]["card"] = ".card"
+        base["seletores"]["thumbnail"] = "img[src='foto.jpg'"
+        with self.assertRaises(ValueError):
+            selector_config.validate_override(base)
+        base["seletores"]["thumbnail"] = "img[src='foto.jpg']"
+        base["paginacao"] = {"tipo": "botao", "max_cliques": "muitos"}
+        with self.assertRaises(ValueError):
+            selector_config.validate_override(base)
+        base["paginacao"] = {"tipo": "botao", "max_cliques": 10}
+        base["filtros"] = {"tipo": "select", "seletor": "select.bairro"}
+        selector_config.validate_override(base)
+
+    def test_editor_requires_current_test_or_forced_justification_and_writes_history(self):
+        with TemporaryDirectory() as folder:
+            path, history = Path(folder) / "override.yaml", Path(folder) / "history.jsonl"
+            data = {"sites": {"exemplo": {"base_url": "https://exemplo.test", "listagem_url": "https://exemplo.test/a", "seletores": {"card": ".card", "link": "a", "titulo": "h2", "preco": ".preco", "thumbnail": "img"}}}}
+            path.write_text(__import__("yaml").safe_dump(data), encoding="utf-8")
+            draft = {"seletores": {"card": ".novo"}}
+            with self.assertRaises(ValueError):
+                selector_config.save_edited_override("exemplo", draft, tested_signature=None, test_result=None, path=path, history_path=history)
+            with self.assertRaises(ValueError):
+                selector_config.save_edited_override("exemplo", draft, tested_signature="antigo", test_result={"publicavel": True}, path=path, history_path=history)
+            with self.assertRaises(ValueError):
+                selector_config.save_edited_override("exemplo", draft, tested_signature=None, test_result={"publicavel": False}, force=True, path=path, history_path=history)
+            proposed = selector_config._merge(data["sites"]["exemplo"], draft)
+            current_signature = selector_config.config_signature(proposed)
+            with self.assertRaises(ValueError):
+                selector_config.save_edited_override(
+                    "exemplo", draft, tested_signature=current_signature,
+                    test_result={"publicavel": True}, force=True,
+                    justification="Não deve forçar", path=path,
+                    history_path=history,
+                )
+            with self.assertRaises(ValueError):
+                selector_config.save_edited_override(
+                    "exemplo", draft, tested_signature=None,
+                    test_result={"publicavel": False}, force=True,
+                    justification="Conferido manualmente", path=path,
+                    history_path=history,
+                )
+            saved = selector_config.save_edited_override(
+                "exemplo", draft, tested_signature=current_signature,
+                test_result={"publicavel": False}, force=True,
+                justification="Conferido manualmente", path=path,
+                history_path=history,
+            )
+            self.assertEqual(saved["seletores"]["card"], ".novo")
+            self.assertEqual(selector_config.selector_history("exemplo", history)[0]["action"], "save_forced")
+            restored = selector_config.restore_previous_override("exemplo", confirmation=True, path=path, history_path=history)
+            self.assertEqual(restored["seletores"]["card"], ".card")
+
+    def test_editor_failure_keeps_previous_file(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "override.yaml"
+            original = "sites:\n  exemplo:\n    base_url: https://exemplo.test\n    listagem_url: https://exemplo.test/a\n    seletores:\n      card: .card\n      link: a\n      titulo: h2\n      preco: .preco\n      thumbnail: img\n"
+            path.write_text(original, encoding="utf-8")
+            with self.assertRaises(ValueError):
+                selector_config.save_edited_override("exemplo", {"seletores": {"card": "//invalido"}}, tested_signature=None, test_result=None, path=path, history_path=Path(folder) / "history.jsonl")
+            self.assertEqual(path.read_text(encoding="utf-8"), original)
+
+    def test_editor_uses_atomic_write(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "override.yaml"
+            history = Path(folder) / "history.jsonl"
+            original = "sites:\n  exemplo:\n    base_url: https://exemplo.test\n    listagem_url: https://exemplo.test/a\n    seletores:\n      card: .card\n      link: a\n      titulo: h2\n      preco: .preco\n      thumbnail: img\n"
+            path.write_text(original, encoding="utf-8")
+            current = selector_config.list_persisted_overrides(path)["exemplo"]
+            draft = {"seletores": {"card": ".novo"}}
+            signature = selector_config.config_signature({**current, "seletores": {**current["seletores"], **draft["seletores"]}})
+            with patch.object(selector_config.os, "replace", side_effect=OSError("falha")):
+                with self.assertRaises(OSError):
+                    selector_config.save_edited_override("exemplo", draft, tested_signature=signature, test_result={"publicavel": True}, path=path, history_path=history)
+            self.assertEqual(path.read_text(encoding="utf-8"), original)
+            self.assertEqual(list(Path(folder).glob(".override.yaml.*.tmp")), [])
+
+    def test_editor_rolls_back_when_history_cannot_be_recorded(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "override.yaml"
+            history = Path(folder) / "history.jsonl"
+            original = {
+                "sites": {
+                    "exemplo": {
+                        "base_url": "https://exemplo.test",
+                        "listagem_url": "https://exemplo.test/a",
+                        "seletores": {
+                            "card": ".card", "link": "a", "titulo": "h2",
+                            "preco": ".preco", "thumbnail": "img",
+                        },
+                    }
+                }
+            }
+            path.write_text(
+                __import__("yaml").safe_dump(original, sort_keys=False),
+                encoding="utf-8",
+            )
+            draft = {"seletores": {"card": ".novo"}}
+            proposed = selector_config._merge(original["sites"]["exemplo"], draft)
+            signature = selector_config.config_signature(proposed)
+            with patch.object(selector_config, "_record", side_effect=OSError("sem espaço")):
+                with self.assertRaises(OSError):
+                    selector_config.save_edited_override(
+                        "exemplo", draft, tested_signature=signature,
+                        test_result={"publicavel": True}, path=path,
+                        history_path=history,
+                    )
+            restored = __import__("yaml").safe_load(path.read_text(encoding="utf-8"))
+            self.assertEqual(restored, original)
+
     def test_infere_paginacao_somente_de_urls_observadas(self):
         strategy = scraper._template_url_numerica([
             "https://exemplo.test/busca?finalidade=alugar&page=2",

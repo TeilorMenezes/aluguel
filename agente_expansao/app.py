@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import streamlit as st
+import yaml
 
 APP_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_DIR.parent
@@ -38,6 +39,16 @@ from agente_expansao.publication import (  # noqa: E402
 from agente_expansao.storage import Repository  # noqa: E402
 from agente_expansao.visual_picker import pick_selectors  # noqa: E402
 from agente_expansao.resources import recommended_workers  # noqa: E402
+from agente_expansao.selector_config import (  # noqa: E402
+    REQUIRED_SELECTORS,
+    config_signature,
+    list_persisted_overrides,
+    proposal_override_is_stale,
+    restore_previous_override,
+    save_edited_override,
+    selector_history,
+    validate_override,
+)
 from snapshot_publico import PUBLIC_DB_PATH  # noqa: E402
 
 
@@ -443,6 +454,138 @@ with tab_teach:
         "‘Começar seleção’, escolha card, link, título, preço e imagem e depois ensine "
         "como carregar os demais imóveis."
     )
+    st.markdown("### Editar uma configuração já aprendida")
+    persisted = list_persisted_overrides()
+    if not persisted:
+        st.info("Ainda não há configuração aprendida para editar.")
+    else:
+        edit_key = st.selectbox(
+            "Fonte com configuração aprendida", sorted(persisted), key="override_editor_site"
+        )
+        original = persisted[edit_key]
+        st.caption("Cole apenas seletores CSS. A configuração original permanece até salvar.")
+        edited_url = st.text_input(
+            "URL da listagem", original.get("listagem_url", ""), key=f"edit_url_{edit_key}"
+        )
+        edited_selectors = dict(original.get("seletores") or {})
+        selector_columns = st.columns(2)
+        for index, field in enumerate(REQUIRED_SELECTORS):
+            with selector_columns[index % 2]:
+                edited_selectors[field] = st.text_input(
+                    field.capitalize(), edited_selectors.get(field, ""), key=f"edit_{edit_key}_{field}"
+                )
+        for field in ("bairro", "tipo", "status", "thumbnail_attr"):
+            with selector_columns[0 if field in {"bairro", "status"} else 1]:
+                edited_selectors[field] = st.text_input(
+                    f"Seletor opcional: {field}", edited_selectors.get(field, ""),
+                    key=f"edit_{edit_key}_{field}",
+                )
+        extra_selectors = {
+            key: value for key, value in edited_selectors.items()
+            if key not in set(REQUIRED_SELECTORS) | {"bairro", "tipo", "status", "thumbnail_attr"}
+        }
+        extras_text = st.text_area(
+            "Outros seletores e atributos (JSON)",
+            json.dumps(extra_selectors, ensure_ascii=False, indent=2), key=f"edit_extras_{edit_key}",
+        )
+        pagination_text = st.text_area(
+            "Paginação (YAML)", yaml.safe_dump(original.get("paginacao") or {}, allow_unicode=True, sort_keys=False),
+            key=f"edit_pagination_{edit_key}",
+        )
+        filters_text = st.text_area(
+            "Filtros (YAML)", yaml.safe_dump(original.get("filtros") or {}, allow_unicode=True, sort_keys=False),
+            key=f"edit_filters_{edit_key}",
+        )
+
+        def editor_draft():
+            extras = json.loads(extras_text or "{}")
+            pagination = yaml.safe_load(pagination_text) or {}
+            filters = yaml.safe_load(filters_text) or {}
+            if not isinstance(extras, dict) or not isinstance(pagination, dict) or not isinstance(filters, dict):
+                raise ValueError("Os campos avançados devem conter objetos válidos.")
+            cleaned = {
+                key: (value if value else None)
+                for key, value in edited_selectors.items()
+            }
+            cleaned.update(extras)
+            return {
+                **original, "listagem_url": edited_url, "seletores": cleaned,
+                "paginacao": pagination, "filtros": filters,
+            }
+
+        state_key = f"override_editor_test_{edit_key}"
+        try:
+            draft = editor_draft()
+            validate_override(draft)
+            draft_error = ""
+            draft_signature = config_signature(draft)
+        except Exception as exc:
+            draft = None
+            draft_signature = ""
+            draft_error = str(exc)
+            st.warning(f"Revise a configuração: {exc}")
+        if st.button("Testar configuração", key=f"test_override_{edit_key}"):
+            try:
+                if draft is None:
+                    raise ValueError(draft_error)
+                result = adapter.validate_learned_selectors(edited_url, draft["seletores"])
+                st.session_state[state_key] = {"signature": draft_signature, "result": result}
+            except Exception as exc:
+                if draft_signature:
+                    st.session_state[state_key] = {
+                        "signature": draft_signature,
+                        "result": {
+                            "publicavel": False,
+                            "taxas_campos": {},
+                            "motivos_validacao": [str(exc)],
+                        },
+                    }
+                st.error(f"Não foi possível testar: {exc}")
+        tested = st.session_state.get(state_key, {})
+        test_is_current = tested.get("signature") == draft_signature and bool(draft_signature)
+        if tested and not test_is_current:
+            st.info("A configuração mudou depois do teste; teste novamente antes de salvar.")
+        if test_is_current:
+            result = tested.get("result", {})
+            st.json({"taxas": result.get("taxas_campos", {}), "motivos": result.get("motivos_validacao", [])})
+            if result.get("publicavel"):
+                st.success("Teste aprovado. Você já pode salvar.")
+            else:
+                st.warning("O teste encontrou avisos. Salvar exige confirmação e justificativa.")
+        current_result = tested.get("result", {}) if test_is_current else {}
+        can_force = test_is_current and not bool(current_result.get("publicavel"))
+        force_key = f"force_override_{edit_key}"
+        if not can_force:
+            st.session_state[force_key] = False
+        force_save = st.checkbox(
+            "Salvar mesmo com avisos", key=force_key, disabled=not can_force
+        )
+        force_reason = st.text_input("Justificativa", key=f"force_reason_{edit_key}") if force_save else ""
+        if st.button("Salvar configuração", type="primary", key=f"save_override_{edit_key}"):
+            try:
+                if draft is None:
+                    raise ValueError(draft_error)
+                save_edited_override(
+                    edit_key, draft, tested_signature=tested.get("signature"),
+                    test_result=tested.get("result"), force=force_save, justification=force_reason,
+                )
+                st.success("Configuração salva. Gere uma nova prévia antes de publicar.")
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
+        history = selector_history(edit_key)
+        if history:
+            st.caption(f"{len(history)} alteração(ões) registrada(s).")
+            restore_reason = st.text_input("Motivo da restauração (opcional)", key=f"restore_reason_{edit_key}")
+            restore_confirm = st.checkbox("Confirmo restaurar a versão anterior", key=f"restore_confirm_{edit_key}")
+            if st.button("Restaurar versão anterior", key=f"restore_override_{edit_key}"):
+                try:
+                    restore_previous_override(edit_key, confirmation=restore_confirm, justification=restore_reason)
+                    st.success("Versão anterior restaurada. Gere uma nova prévia antes de publicar.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(str(exc))
+
     sites = configured_sites()
     targets = {
         f"site:{key}": f"Cadastrada — {site.get('nome') or key}"
@@ -612,6 +755,9 @@ with tab_publish:
 
     st.markdown("### 1. Publicar o banco de imóveis")
     snapshot = proposal_preview() if PROPOSAL_DB_PATH.is_file() else {}
+    stale_override = proposal_override_is_stale()
+    if stale_override:
+        st.warning("A configuração aprendida mudou depois da prévia. Gere e revise uma nova prévia antes de publicar.")
     if not snapshot:
         st.info(
             "Primeiro gere e revise uma prévia em ‘Raspar e visualizar’."
@@ -644,6 +790,7 @@ with tab_publish:
             and snapshot_confirmed
             and snapshot_confirmation == CONFIRMATION_PHRASE
             and diagnosis["available"]
+            and not stale_override
         ),
     ):
         try:
