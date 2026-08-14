@@ -272,9 +272,9 @@ def save_selector_override(
         "seletores": selectors,
         "aprendido_em": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
-    if pagination:
+    if pagination is not None:
         learned["paginacao"] = pagination
-    if filters:
+    if filters is not None:
         learned["filtros"] = filters
     current["sites"][site_key] = learned
     LOCAL_OVERRIDE_PATH.write_text(

@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from agente_expansao.engine import ExpansionEngine, classify
+from agente_expansao.integrations import ProjectAdapter
 from agente_expansao.publication import (
     build_preview,
     merge_site_blocks,
@@ -61,6 +62,18 @@ class FakeAdapter:
 
 
 class AgentExpansionTest(unittest.TestCase):
+    def test_project_adapter_normaliza_contrato_do_detector(self):
+        raw = {
+            "confianca": 0.91, "plataforma": "wordpress",
+            "seletores": {"card": ".card"}, "evidencias": {"cards": 8},
+        }
+        with patch("agente_expansao.integrations.inspecionar_url", return_value=raw):
+            result = ProjectAdapter().inspect("https://exemplo.test/aluguel")
+        self.assertEqual(result["confidence"], 0.91)
+        self.assertEqual(result["platform"], "wordpress")
+        self.assertEqual(result["selectors"]["card"], ".card")
+        self.assertEqual(result["evidence"]["cards"], 8)
+
     def test_stale_override_blocks_snapshot_publication_before_external_call(self):
         with tempfile.TemporaryDirectory() as folder:
             folder = Path(folder)

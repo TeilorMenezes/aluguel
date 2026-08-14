@@ -53,7 +53,8 @@ def _origin(url: str) -> tuple[str, str, int | None]:
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise ValueError("Use uma URL http ou https válida.")
-    return parsed.scheme, parsed.hostname.lower(), parsed.port
+    hostname = parsed.hostname.lower().removeprefix("www.")
+    return parsed.scheme, hostname, parsed.port
 
 
 def _css(value: object, label: str) -> None:

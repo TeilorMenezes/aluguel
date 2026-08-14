@@ -23,14 +23,22 @@ import requests
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 import db
-from detector import detectar_seletores, salvar_padrao
+from detector import avaliar_extracao, detectar_seletores
 from geocode import geocodificar_bairro
 from tipos import normalizar_tipo
-from normalizacao import normalizar_localizacao
+from normalizacao import cidade_explicita_em_texto, normalizar_cidade, normalizar_localizacao
 
 CONFIG_PATH = Path(__file__).parent / "sites_config.yaml"
 DEFAULT_OVERRIDE_PATH = Path(__file__).parent / "public_data" / "selectors_override.yaml"
 _OVERRIDE_LOCK = threading.Lock()
+
+
+def _extrair_url_css(valor):
+    """Retorna a URL de um valor CSS ``url(...)`` ou ``background: url(...)``."""
+    if not valor:
+        return None
+    match = re.search(r"url\(\s*(['\"]?)(.*?)\1\s*\)", str(valor), re.I)
+    return match.group(2).strip() if match and match.group(2) else None
 
 
 def _normalizar_url_imagem(url):
@@ -42,6 +50,14 @@ def _normalizar_url_imagem(url):
     """
     if not url:
         return None
+    # Alguns temas WordPress guardam o estilo inteiro no atributo escolhido,
+    # em vez de uma URL. Extraia somente o valor de url(...).
+    valor_css = _extrair_url_css(url)
+    if valor_css:
+        url = valor_css
+    elif re.search(r"\bbackground(?:-image)?\b|\burl\s*\(", str(url), re.I):
+        # Não deixe uma declaração CSS incompleta chegar ao banco ou à UI.
+        return None
     partes = urlsplit(url.strip())
     return urlunsplit((
         partes.scheme, partes.netloc, quote(partes.path, safe="/%"),
@@ -49,11 +65,81 @@ def _normalizar_url_imagem(url):
     ))
 
 
+def _primeira_url_srcset(value):
+    if not value:
+        return None
+    candidatos = []
+    for indice, parte in enumerate(value.split(",")):
+        tokens = parte.strip().split()
+        if not tokens:
+            continue
+        url = tokens[0]
+        descritor = tokens[1] if len(tokens) > 1 else ""
+        tamanho = re.search(r"(\d+(?:\.\d+)?)\s*(w|x)$", descritor, re.I)
+        peso = float(tamanho.group(1)) if tamanho else 0
+        candidatos.append((peso, -indice, url))
+    return max(candidatos)[2] if candidatos else None
+
+
+def _url_imagem_elemento(elemento, atributo_preferido="src"):
+    """Extrai imagem de img/picture ou de um contêiner com fundo CSS."""
+    if not elemento:
+        return None
+    candidatos = [elemento]
+    try:
+        descendente = elemento.query_selector("img, source")
+        if descendente:
+            candidatos.append(descendente)
+    except Exception:
+        pass
+    atributos = (
+        atributo_preferido, "currentSrc", "src", "data-src", "data-lazy-src",
+        "data-original", "data-background-image", "data-bg", "data-bg-src",
+        "srcset", "data-srcset",
+    )
+    for candidato in candidatos:
+        for atributo in dict.fromkeys(atributos):
+            if atributo == "style":
+                continue
+            try:
+                valor = candidato.get_attribute(atributo)
+            except Exception:
+                valor = None
+            if not valor or valor.startswith("data:image"):
+                continue
+            if atributo.endswith("srcset"):
+                valor = _primeira_url_srcset(valor)
+            if valor:
+                return valor.strip()
+        try:
+            style = candidato.get_attribute("style") or ""
+        except Exception:
+            style = ""
+        imagem_css = _extrair_url_css(style)
+        if imagem_css:
+            return imagem_css
+    return None
+
+
 def _eh_arquivo_de_imagem(url: str) -> bool:
     """Evita confundir o link de uma foto com a página do imóvel."""
     if not url:
         return False
     return bool(re.search(r"\.(?:avif|gif|jpe?g|png|svg|webp)(?:$|[?#])", url, re.IGNORECASE))
+
+
+def _cidade_da_url(url):
+    """Usa uma cidade explicitamente codificada no caminho da listagem."""
+    partes = [parte for parte in urlsplit(url or "").path.split("/") if parte]
+    if not partes:
+        return None
+    candidato = partes[-1].replace("-", " ").replace("_", " ").strip()
+    if (
+        not re.fullmatch(r"[A-Za-zÀ-ÿ ]{3,60}", candidato)
+        or candidato.casefold() in {"aluguel", "alugar", "imoveis", "imóveis", "mg", "br"}
+    ):
+        return None
+    return normalizar_cidade(candidato)
 
 
 def _link_do_imovel(card, seletor_preferido):
@@ -122,30 +208,76 @@ def _texto(elemento):
     return txt if txt else None
 
 
-def _parse_preco(texto: str):
+def _normalizar_numero_preco(numero: str):
+    """Converte formatos brasileiro e internacional sem reduzir milhares a decimais."""
+    numero = re.sub(r"\s+", "", numero or "")
+    if not re.fullmatch(r"\d[\d.,]*", numero):
+        return None
+
+    pontos = numero.count(".")
+    virgulas = numero.count(",")
+    if pontos and virgulas:
+        decimal = "." if numero.rfind(".") > numero.rfind(",") else ","
+        milhares = "," if decimal == "." else "."
+        numero = numero.replace(milhares, "").replace(decimal, ".")
+    elif pontos or virgulas:
+        separador = "." if pontos else ","
+        partes = numero.split(separador)
+        if len(partes) > 1 and all(len(parte) == 3 for parte in partes[1:]):
+            numero = "".join(partes)
+        else:
+            numero = numero.replace(separador, ".")
+    try:
+        return float(numero)
+    except ValueError:
+        return None
+
+
+def _parse_preco(texto: str, *, permitir_inteiro_livre: bool = False):
     """Converte 'R$ 1.200,00  Código. 6089' -> 1200.0 (pega só o 1º número)."""
     if not texto:
         return None
     if re.search(r"\bsob\s+consulta\b|\bconsultar\b", texto, re.IGNORECASE):
         return None
     # Prioriza o valor após R$ para não confundir código do imóvel, área ou quartos com preço.
-    m = re.search(r"R\$\s*([\d\.]+(?:,\d{2})?)", texto, re.IGNORECASE)
+    valores_monetarios = list(re.finditer(r"R\$\s*(\d[\d\s.,]*)", texto, re.IGNORECASE))
+    if valores_monetarios:
+        classificados = []
+        for ocorrencia in valores_monetarios:
+            inicio, fim = ocorrencia.span()
+            inicio_trecho = max(texto.rfind(separador, 0, inicio) for separador in "|;\n") + 1
+            finais = [texto.find(separador, fim) for separador in "|;\n"]
+            fim_trecho = min((posicao for posicao in finais if posicao >= 0), default=len(texto))
+            contexto = texto[inicio_trecho:fim_trecho].casefold()
+            score = 0
+            if re.search(r"alugu|loca[cç]|mensal|rent", contexto):
+                score += 4
+            if re.search(r"venda|vend[ae]|compra", contexto):
+                score -= 5
+            if re.search(r"condom[ií]nio|iptu|taxa", contexto):
+                score -= 4
+            classificados.append((score, -inicio, ocorrencia.group(1)))
+        melhor_score, _, melhor_valor = max(classificados)
+        if melhor_score < 0 or (
+            re.search(r"venda|vend[ae]|compra", texto, re.I)
+            and not re.search(r"alugu|loca[cç]|mensal|rent", texto, re.I)
+        ):
+            return None
+        return _normalizar_numero_preco(melhor_valor)
+
+    m = None
     if not m:
         # Sem símbolo monetário, um valor com centavos é mais confiável que
         # o primeiro inteiro do card (quartos, vagas ou área).
-        m = re.search(r"[\d\.]+,\d{2}", texto)
+        m = re.search(r"\d[\d\s.,]*[.,]\d{2}\b", texto)
     if not m:
         # Alguns portais exibem milhares como "2.000" sem R$ nem centavos.
-        m = re.search(r"\d{1,3}(?:\.\d{3})+", texto)
-    if not m:
+        m = re.search(r"\d{1,3}(?:[.,]\d{3})+", texto)
+    if not m and permitir_inteiro_livre:
         m = re.search(r"\d+", texto)
     if not m:
         return None
-    numeros = (m.group(1) if m.lastindex else m.group(0)).replace(".", "").replace(",", ".")
-    try:
-        return float(numeros)
-    except ValueError:
-        return None
+    return _normalizar_numero_preco(m.group(1) if m.lastindex else m.group(0))
 
 
 def _aplicar_titulo_regex(titulo: str, padrao: str):
@@ -226,13 +358,74 @@ def _titulo_alternativo(card, link_el):
     return imagem.get_attribute("alt") if imagem else None
 
 
+def _titulo_util(titulo):
+    texto = (titulo or "").strip()
+    return bool(
+        len(texto) >= 8
+        and not re.fullmatch(r"\d+\s*fotos?", texto, re.I)
+        and texto.casefold() not in {"undefined", "imóvel para alugar", "imovel para alugar"}
+        and "{{" not in texto
+    )
+
+
 def _qualidade_extracao(itens):
     """Mede se título e preço foram preenchidos em uma quantidade aceitável de cards."""
     if not itens:
         return 0.0
     titulos = sum(bool(i.get("titulo")) and i["titulo"] != "Imóvel para alugar" for i in itens) / len(itens)
+    titulos = sum(_titulo_util(i.get("titulo")) for i in itens) / len(itens)
     precos = sum(i.get("preco") is not None for i in itens) / len(itens)
     return min(titulos, precos)
+
+
+def _url_anuncio_valida(url):
+    partes = urlsplit(url or "")
+    texto = (url or "").casefold()
+    return bool(
+        partes.scheme in {"http", "https"}
+        and partes.netloc
+        and not _eh_arquivo_de_imagem(url)
+        and not any(token in texto for token in ("{{", "}}", "javascript:", "whatsapp", "/share/"))
+    )
+
+
+def _saude_lote(itens, baseline=0):
+    """Gate determinístico: aprende com o último volume saudável da fonte."""
+    total = len(itens)
+    if not total:
+        return {
+            "aceito": False,
+            "motivos": ["nenhum anúncio extraído"],
+            "total": 0,
+            "urls_unicas": 0,
+            "taxas": {},
+        }
+    urls = {item.get("url") for item in itens if _url_anuncio_valida(item.get("url"))}
+    taxas = {
+        "url": len(urls) / total,
+        "titulo": sum(_titulo_util(item.get("titulo")) for item in itens) / total,
+        "preco": sum(item.get("preco") is not None for item in itens) / total,
+        "cidade": sum(bool(item.get("cidade")) for item in itens) / total,
+        "foto": sum(bool(item.get("thumbnail_url")) for item in itens) / total,
+    }
+    motivos = []
+    if not urls or taxas["url"] < 0.95:
+        motivos.append("URLs de anúncio insuficientes ou inválidas")
+    if taxas["titulo"] < 0.60:
+        motivos.append("títulos úteis abaixo de 60%")
+    if taxas["preco"] < 0.50:
+        motivos.append("preços de aluguel confiáveis abaixo de 50%")
+    if taxas["cidade"] < 0.60:
+        motivos.append("cidades preenchidas abaixo de 60%")
+    if baseline >= 10 and len(urls) < baseline * 0.50:
+        motivos.append(f"volume caiu de {baseline} para {len(urls)} URLs")
+    return {
+        "aceito": not motivos,
+        "motivos": motivos,
+        "total": total,
+        "urls_unicas": len(urls),
+        "taxas": {campo: round(valor, 2) for campo, valor in taxas.items()},
+    }
 
 
 def _extrair_com_autocorrecao(page, cfg_site):
@@ -246,11 +439,16 @@ def _extrair_com_autocorrecao(page, cfg_site):
     # primeira varredura calibra a página antes de tentar extrair os cards.
     if not cfg_site.get("seletores", {}).get("card"):
         try:
-            sugestao_inicial = detectar_seletores(page.content())
+            html = page.content()
+            sugestao_inicial = detectar_seletores(html)
             essenciais = {"card", "link", "preco"}
             if essenciais.issubset(sugestao_inicial.get("seletores", {})):
+                validacao = avaliar_extracao(
+                    html, sugestao_inicial["seletores"], page.url
+                )
+                if validacao.get("qualidade_extracao", 0) < 0.62:
+                    return []
                 cfg_site["seletores"] = sugestao_inicial["seletores"]
-                salvar_padrao(sugestao_inicial.get("plataforma", "generico"), cfg_site["seletores"])
             else:
                 return []
         except Exception:
@@ -262,16 +460,28 @@ def _extrair_com_autocorrecao(page, cfg_site):
         return itens_originais
 
     try:
-        sugestao = detectar_seletores(page.content())
+        html = page.content()
+        sugestao = detectar_seletores(html)
         novos_seletores = sugestao.get("seletores", {})
         if sugestao.get("erro") or not {"card", "link", "preco"}.issubset(novos_seletores):
             return itens_originais
 
         seletores_anteriores = cfg_site["seletores"]
+        validacao_anterior = avaliar_extracao(html, seletores_anteriores, page.url)
         cfg_site["seletores"] = {**seletores_anteriores, **novos_seletores}
+        validacao_nova = avaliar_extracao(html, cfg_site["seletores"], page.url)
         itens_corrigidos = _extrair_cards(page, cfg_site)
-        if _qualidade_extracao(itens_corrigidos) > qualidade_original:
-            salvar_padrao(sugestao.get("plataforma", "generico"), cfg_site["seletores"])
+        taxas_anteriores = validacao_anterior.get("taxas_campos", {})
+        taxas_novas = validacao_nova.get("taxas_campos", {})
+        sem_regressao_essencial = all(
+            taxas_novas.get(campo, 0) >= taxas_anteriores.get(campo, 0)
+            for campo in ("link", "preco")
+        )
+        ganho = (
+            validacao_nova.get("qualidade_extracao", 0)
+            >= validacao_anterior.get("qualidade_extracao", 0) + 0.05
+        )
+        if sem_regressao_essencial and ganho and _qualidade_extracao(itens_corrigidos) > qualidade_original:
             return itens_corrigidos
         cfg_site["seletores"] = seletores_anteriores
     except Exception:
@@ -357,7 +567,7 @@ def _raspar_imoview(cfg_site: dict):
                 "url": url,
                 "titulo": bruto.get("titulo") or f"{bruto.get('tipo') or 'Imóvel'} para alugar",
                 "tipo": normalizar_tipo(bruto.get("tipo")),
-                "preco": _parse_preco(str(valor)) if valor is not None else None,
+                "preco": _parse_preco(str(valor), permitir_inteiro_livre=True) if valor is not None else None,
                 "bairro": bairro,
                 "cidade": cidade,
                 "thumbnail_url": thumb,
@@ -392,8 +602,8 @@ def _extrair_cards(page, cfg_site: dict):
             # Algumas páginas de listagem misturam venda e aluguel. Quando a
             # fonte foi configurada para aluguel, aceite somente os cards cujo
             # próprio site informa esse status — sem depender do texto do título.
-            if cfg_site.get("finalidade") == "aluguel":
-                status_normalizado = status_txt.casefold()
+            if cfg_site.get("finalidade") == "aluguel" and seletores.get("status"):
+                status_normalizado = (status_txt or "").casefold()
                 if not any(
                     termo in status_normalizado for termo in ("aluguel", "locaç", "locac")
                 ):
@@ -413,7 +623,7 @@ def _extrair_cards(page, cfg_site: dict):
 
             thumb_el = _selecionar(card, seletores.get("thumbnail")) or _selecionar(card, "img")
             thumb_attr = seletores.get("thumbnail_attr", "src")
-            thumb_url = thumb_el.get_attribute(thumb_attr) if thumb_el else None
+            thumb_url = _url_imagem_elemento(thumb_el, thumb_attr)
             if thumb_url:
                 thumb_url = _normalizar_url_imagem(urljoin(cfg_site["base_url"], thumb_url.strip()))
 
@@ -421,12 +631,14 @@ def _extrair_cards(page, cfg_site: dict):
             localizacao_titulo = _aplicar_endereco_regex(titulo, cfg_site.get("bairro_regex"))
             endereco_extraido = _aplicar_endereco_regex(bairro_txt, cfg_site.get("endereco_regex"))
 
+            cidade_explicita = cidade_explicita_em_texto(bairro_txt, titulo)
+            cidade_url = _cidade_da_url(cfg_site.get("listagem_url"))
             if cfg_site.get("preferir_localizacao_titulo"):
                 bairro = extraido["bairro"] or localizacao_titulo["bairro"] or endereco_extraido["bairro"] or bairro_txt
-                cidade = extraido["cidade"] or localizacao_titulo["cidade"] or endereco_extraido["cidade"] or cfg_site.get("cidade_padrao")
+                cidade = extraido["cidade"] or localizacao_titulo["cidade"] or endereco_extraido["cidade"] or cidade_explicita or cidade_url or cfg_site.get("cidade_padrao")
             else:
                 bairro = endereco_extraido["bairro"] or bairro_txt or extraido["bairro"]
-                cidade = endereco_extraido["cidade"] or extraido["cidade"] or cfg_site.get("cidade_padrao")
+                cidade = endereco_extraido["cidade"] or extraido["cidade"] or cidade_explicita or cidade_url or cfg_site.get("cidade_padrao")
             bairro, cidade = normalizar_localizacao(bairro, cidade, cfg_site.get("cidade_padrao"))
             tipo = normalizar_tipo(tipo_txt or extraido["tipo"])
 
@@ -607,6 +819,7 @@ def _template_url_numerica(urls):
                 ),
                 "parametro": "caminho",
                 "paginas_observadas": [int(match.group(2))],
+                "incremento": 1,
             }
     return None
 
@@ -884,7 +1097,7 @@ def _extrair_json_generico(data, cfg_site):
                 "tipo": normalizar_tipo(
                     _valor_dict(record, ("tipo", "type", "tipoimovel", "propertytype"))
                 ),
-                "preco": _parse_preco(str(raw_price)) if raw_price is not None else None,
+                "preco": _parse_preco(str(raw_price), permitir_inteiro_livre=True) if raw_price is not None else None,
                 "bairro": neighborhood,
                 "cidade": city,
                 "thumbnail_url": (
@@ -1308,6 +1521,22 @@ def rodar_varredura(
                     "erro",
                     tentativas=tentativas,
                     erro=erro,
+                )
+                continue
+
+            saude = _saude_lote(itens_brutos, db.contar_imoveis_site(site_key))
+            if not saude["aceito"]:
+                detalhe = "; ".join(saude["motivos"])
+                erros.append(f"{site_key}: coleta degradada ({detalhe})")
+                db.registrar_status_site(
+                    site_key,
+                    "degradado",
+                    tentativas=tentativas,
+                    imoveis_coletados=saude["urls_unicas"],
+                    erro=detalhe,
+                )
+                _registrar_historico_estrategia(
+                    site_key, "coleta_degradada", qualidade=saude
                 )
                 continue
 

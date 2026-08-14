@@ -17,14 +17,18 @@ tem entrada própria em `agente_expansao/app.py`.
    entrega o DOM final ao detector de cards.
 4. **Validação:** regras medem título, preço, imagem, link, links únicos e sinais
    de que a página é realmente de aluguel.
+   A escolha de cards usa seletores estáveis e penaliza wrappers genéricos; links
+   de favorito, comparação e paginação perdem prioridade. Imagens podem vir de
+   `img`, `picture`, atributos lazy, `srcset` ou `background-image`.
 5. **Revisão:** baixa confiança ou validação incompleta vai para quarentena.
    Confiança alta vai para revisão, nunca para publicação automática.
 6. **Aprendizado:** correções manuais ficam no banco local, associadas à
    plataforma detectada. Em inspeções futuras da mesma plataforma, os seletores
    aprendidos são aplicados ao DOM renderizado e só vencem a heurística quando a
-   validação mede qualidade igual ou superior. O contrato `AmbiguityResolver`
-   permite futuramente usar uma API ou modelo local pequeno somente na faixa
-   ambígua.
+   validação mede qualidade igual ou superior. O contrato `AmbiguityResolver` e
+   o fallback de seletores permitem usar um modelo local ou API somente na faixa
+   ambígua. O modelo escolhe candidatos pré-gerados em um pacote higienizado e
+   sua resposta nunca vence sem revalidação determinística.
 7. **Publicação:** candidatos aprovados geram uma branch `codex/...` e um pull
    request. A branch `main` nunca é escrita diretamente pelo agente.
 
@@ -46,11 +50,13 @@ Correções visuais ficam inicialmente em
 cópia revisada vai para `public_data/selectors_override.yaml`, que é mesclada
 pelo scraper sem apagar o `sites_config.yaml`.
 
-O editor de configurações aprendidas valida URL, origem e seletores CSS antes de
-gravar o YAML local atomicamente. Cada salvamento ou restauração gera um evento
-append-only em `data/selector_config_history.jsonl`, com estado anterior e novo,
-validação e justificativa. A cópia do override na proposta é imutável: se o
-override local divergir, a publicação é bloqueada até gerar nova prévia.
+No próprio fluxo de ensino, os cinco seletores obrigatórios e a navegação
+aprendida são editáveis antes do salvamento. Um aprendizado persistido é
+recarregado ao selecionar a mesma fonte, e qualquer alteração invalida o teste
+anterior. Edições persistidas usam gravação atômica e histórico append-only, com
+rollback se o registro do histórico falhar. A cópia do override na proposta é
+imutável: se o override local divergir, a publicação é bloqueada até gerar
+nova prévia.
 
 ## Componentes
 

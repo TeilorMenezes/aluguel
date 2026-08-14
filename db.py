@@ -216,6 +216,15 @@ def listar_sites_com_imoveis():
     return {linha["site_key"] for linha in linhas}
 
 
+def contar_imoveis_site(site_key: str) -> int:
+    """Quantidade atual usada como baseline de saúde da fonte."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS total FROM imoveis WHERE site_key = ?", (site_key,)
+        ).fetchone()
+    return int(row["total"] or 0)
+
+
 def _filtros_imoveis(
     preco_min=None,
     preco_max=None,

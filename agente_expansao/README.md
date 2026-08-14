@@ -78,10 +78,37 @@ o painel oferece retomar as imobiliárias pendentes ou descartar esse progresso.
 O histórico de estratégias aprendidas, reutilizadas e rejeitadas fica somente em
 `data/strategy_history.jsonl`.
 
-Configurações aprendidas também podem ser revisadas na aba **Ensinar manualmente**.
-O editor aceita seletores CSS, mantém campos desconhecidos, testa antes de salvar e
-registra cada alteração ou restauração em `data/selector_config_history.jsonl`.
-Salvar uma configuração que não passou no teste exige confirmação e justificativa.
+Na aba **Ensinar manualmente**, o resultado visual aparece em campos editáveis para
+card, link, título, preço e thumbnail. Paginação e filtros também podem ser
+ajustados no mesmo fluxo. Ao escolher uma imobiliária que já foi ensinada, esses
+valores são carregados automaticamente. Toda alteração precisa ser testada antes
+de salvar; resultados com aviso ainda exigem revisão visual explícita.
+
+Se você já possui a URL da listagem, use **Detectar caminhos automaticamente**.
+O detector compara contêineres repetidos, links de anúncios, títulos, preços e
+imagens (inclusive lazy loading, `srcset` e `background-image`) e preenche o mesmo
+editor para revisão. Nenhuma sugestão é publicada ou aprovada automaticamente.
+
+### Fallback opcional de IA
+
+A IA fica desligada por padrão e só é consultada quando a heurística não passa na
+validação. Ela escolhe IDs de seletores já gerados pelo robô em um pacote de DOM
+compacto e higienizado; não recebe cookies, scripts, formulários ou o DOM bruto e
+não pode publicar. A resposta precisa melhorar a qualidade e passar novamente
+pela validação determinística.
+
+Para um servidor local compatível com Ollama:
+
+```powershell
+$env:IMOVEIS_AI_SELECTOR_MODE="local"
+$env:IMOVEIS_AI_SELECTOR_ENDPOINT="http://127.0.0.1:11434"
+$env:IMOVEIS_AI_SELECTOR_MODEL="qwen2.5-coder:3b"
+```
+
+Para nuvem, habilite explicitamente `IMOVEIS_AI_SELECTOR_ALLOW_CLOUD=1`, configure
+`OPENAI_API_KEY` somente no ambiente e escolha o modelo em
+`IMOVEIS_AI_SELECTOR_MODEL`. Sem essas variáveis o robô funciona apenas com as
+regras locais, sem custo de IA.
 Uma prévia já preparada permanece congelada: depois de editar, gere uma nova prévia
 antes de publicar.
 

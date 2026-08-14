@@ -26,12 +26,21 @@ _MARCADORES_ENDERECO = re.compile(r"\b(rua|avenida|av\.?|rodovia|estrada|travess
 _MARCADORES_DESCRICAO = re.compile(
     r"\b(para\s+alugu[ea]r|quartos?|su[ií]te|vagas?|m[²2]|comercial)\b", re.I
 )
+_MARCADORES_NAVEGACAO = re.compile(
+    r"\b(previous|next|anterior|pr[oó]xim[oa]|p[aá]gina|page|‹|›|«|»)\b|\{\{",
+    re.I,
+)
 
 
 def eh_bairro_valido(valor):
     """Impede que títulos e características de imóveis virem opções de bairro."""
     texto = limpar_texto(valor)
-    return bool(texto and len(texto) <= 55 and not _MARCADORES_DESCRICAO.search(texto))
+    return bool(
+        texto
+        and len(texto) <= 55
+        and not _MARCADORES_DESCRICAO.search(texto)
+        and not _MARCADORES_NAVEGACAO.search(texto)
+    )
 
 
 def normalizar_cidade(valor):
@@ -58,6 +67,27 @@ def _cidade_explicita(*valores):
         for nome, canonica in _CIDADES.items():
             if re.search(rf"(?:^|\W){re.escape(nome)}(?:$|\W)", chave):
                 return canonica
+    return None
+
+
+def cidade_explicita_em_texto(*valores):
+    """Lê cidade explicitamente escrita no anúncio, inclusive fora da região-base."""
+    for valor in valores:
+        texto = limpar_texto(valor)
+        if not texto:
+            continue
+        for padrao in (
+            r"(?:[|,]|\s[-–—]\s)\s*([^|,/]+?)\s*(?:[-,/]\s*)MG\b",
+            r"\bem\s+([^|,/]+?)\s*/\s*MG\b",
+        ):
+            encontrados = list(re.finditer(padrao, texto, re.I))
+            if not encontrados:
+                continue
+            cidade = limpar_texto(encontrados[-1].group(1))
+            if cidade:
+                cidade = limpar_texto(re.split(r"\s[-–—]\s", cidade)[-1])
+            if cidade and 2 <= len(cidade) <= 60 and not _MARCADORES_DESCRICAO.search(cidade):
+                return normalizar_cidade(cidade)
     return None
 
 

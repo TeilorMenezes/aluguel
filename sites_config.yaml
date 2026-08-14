@@ -1,354 +1,571 @@
-# =============================================================================
-# CONFIGURAÇÃO DOS SITES DE IMOBILIÁRIAS
-# =============================================================================
-# Seletores identificados a partir do HTML renderizado (debug_oliveira.html
-# e debug_cirsa.html) enviado pelo usuário em 02/07/2026.
-# =============================================================================
-
 sites:
   oliveira:
-    nome: "Oliveira Imóveis"
-    logo: "https://www.oliveiraimoveis.net/assets/img/logo-original.png"
-    base_url: "https://www.oliveiraimoveis.net"
-    listagem_url: "https://www.oliveiraimoveis.net/aluguel"
-    cidade_padrao: "Ipatinga"
-
-    espera_seletor: ".container-card-busca"
-
+    nome: Oliveira Imóveis
+    logo: https://www.oliveiraimoveis.net/assets/img/logo-original.png
+    base_url: https://www.oliveiraimoveis.net
+    listagem_url: https://www.oliveiraimoveis.net/aluguel
+    cidade_padrao: Ipatinga
+    espera_seletor: .container-card-busca
     paginacao:
-      tipo: "botao"              # clica em um botão "ver mais" repetidamente
-      botao_selector: "#ver-mais"
+      tipo: botao
+      botao_selector: '#ver-mais'
       max_cliques: 15
       espera_apos_clique_ms: 1500
-
     seletores:
-      card: ".container-card-busca"
-      link: "a"                   # primeiro <a> dentro do card já tem o href correto
-      titulo: "h2.card-title"     # ex: "Apartamento para alugar  no PARQUE CARAVELAS"
-      preco: "h6.preco-imovel-card"
-      endereco: "h4.card-text"    # rua/número, quando existir (nem sempre confiável)
-      thumbnail: "img.img-imovel"
-      thumbnail_attr: "data-src"
-
-    # Extrai tipo e bairro do texto do título via regex nomeada.
-    # Grupo "tipo" -> tipo do imóvel, grupo "bairro" -> bairro.
-    titulo_regex: '^(?P<tipo>.+?)\s+para alugar\s+no\s+(?P<bairro>.+)$'
-
+      card: .container-card-busca
+      link: a
+      titulo: h2.card-title
+      preco: h6.preco-imovel-card
+      endereco: h4.card-text
+      thumbnail: img.img-imovel
+      thumbnail_attr: data-src
+    titulo_regex: ^(?P<tipo>.+?)\s+para alugar\s+no\s+(?P<bairro>.+)$
   cirsa:
-    nome: "CIRSA Imóveis"
-    logo: "https://www.cirsa.com.br/assets/img/logos/logo.png"
-    base_url: "https://www.cirsa.com.br"
-    listagem_url: "https://www.cirsa.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina={pagina}"
-    cidade_padrao: "Ipatinga"
-
-    espera_seletor: ".property"
-
+    nome: CIRSA Imóveis
+    logo: https://www.cirsa.com.br/assets/img/logos/logo.png
+    base_url: https://www.cirsa.com.br
+    listagem_url: https://www.cirsa.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina={pagina}
+    cidade_padrao: Ipatinga
+    espera_seletor: .property
     paginacao:
-      tipo: "url"                 # incrementa {pagina} na listagem_url
+      tipo: url
       pagina_inicial: 1
       max_paginas: 20
-      # se uma página não trouxer nenhum card novo, o scraper para sozinho
-
     seletores:
-      card: ".property"
-      link: "a"                   # primeiro <a> do card já tem o href do imóvel
-      titulo: "h1.title"          # ex: "Apartamento | HORTO - Ipatinga"
-      preco: ".property-price"
-      thumbnail: ".property-img img"
-      thumbnail_attr: "src"
-
-    # Extrai tipo, bairro e cidade do título: "Tipo | Bairro - Cidade"
-    titulo_regex: '^(?P<tipo>.+?)\s*\|\s*(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$'
-
-  # ---------------------------------------------------------------------
-  # NOVOS SITES (adicionados em 10/07/2026)
-  # As URLs de listagem de aluguel já foram confirmadas. Os seletores
-  # abaixo são PLACEHOLDERS — rode inspect_selectors.py para cada uma
-  # das chaves abaixo e me mande o HTML gerado para eu preencher certo,
-  # do mesmo jeito que fizemos com oliveira/cirsa.
-  # ---------------------------------------------------------------------
-
+      card: .property
+      link: a
+      titulo: h1.title
+      preco: .property-price
+      thumbnail: .property-img img
+      thumbnail_attr: src
+    titulo_regex: ^(?P<tipo>.+?)\s*\|\s*(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$
   certa:
-    nome: "Certa Imóveis"
-    logo: "https://www.certaimoveis.com.br/storage/app/uploads/public/67b/a02/c79/67ba02c7922f3989662105.svg"
-    base_url: "https://www.certaimoveis.com.br"
-    listagem_url: "https://www.certaimoveis.com.br/imoveis/aluguel"
-    cidade_padrao: "Ipatinga"
-    espera_seletor: ".div_imovel"
+    nome: Certa Imóveis
+    logo: https://www.certaimoveis.com.br/storage/app/uploads/public/67b/a02/c79/67ba02c7922f3989662105.svg
+    base_url: https://www.certaimoveis.com.br
+    listagem_url: https://www.certaimoveis.com.br/imoveis/aluguel
+    cidade_padrao: Ipatinga
+    espera_seletor: .div_imovel
     paginacao:
-      tipo: "botao"
-      botao_selector: "button.load_more"
+      tipo: botao
+      botao_selector: button.load_more
       max_cliques: 15
       espera_apos_clique_ms: 1500
     seletores:
-      card: ".div_imovel"
-      link: "a.abrir_link"
-      titulo: "p.tit"                # ex: "Casa para aluguel"
-      preco: "p.value"                 # ex: "Valor: R$ 1.950,00"
-      bairro: ".infos .address"        # ex: "Ideal - Ipatinga" (cuidado: existe outro
-                                        # .address escondido no card, por isso o escopo ".infos")
-      thumbnail: "figure img.image"
-      thumbnail_attr: "src"
-    # Extrai o tipo do início do título: "Casa para aluguel", "Apartamento para aluguel"...
-    titulo_regex: '^(?P<tipo>.+?)\s+para\s+(?:aluguel|loca[çc][ãa]o)'
-    # Extrai bairro e cidade do formato "Bairro - Cidade"
-    endereco_regex: '^(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$'
-
+      card: .div_imovel
+      link: a.abrir_link
+      titulo: p.tit
+      preco: p.value
+      bairro: .infos .address
+      thumbnail: figure img.image
+      thumbnail_attr: src
+    titulo_regex: ^(?P<tipo>.+?)\s+para\s+(?:aluguel|loca[çc][ãa]o)
+    endereco_regex: ^(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$
   jfcorretor:
-    nome: "JF Corretor Imobiliário"
-    logo: "https://www.jfcorretor.com.br/img/logo-topo.png"
-    base_url: "https://www.jfcorretor.com.br"
-    listagem_url: "https://www.jfcorretor.com.br/imobiliaria/locacao/imoveis/8"
-    cidade_padrao: "Ipatinga"
-    espera_seletor: ".c49-property-card"
+    nome: JF Corretor Imobiliário
+    logo: https://www.jfcorretor.com.br/img/logo-topo.png
+    base_url: https://www.jfcorretor.com.br
+    listagem_url: https://www.jfcorretor.com.br/imobiliaria/locacao/imoveis/8
+    cidade_padrao: Ipatinga
+    espera_seletor: .c49-property-card
     paginacao:
-      tipo: "nenhuma"   # essa busca fixa só retorna 10 imóveis, sem paginação
+      tipo: nenhuma
     seletores:
-      card: ".c49-property-card"
-      link: ".c49-property-card_photo a"
-      titulo: ".c49-property-card_title"
-      preco: ".c49-property-card_rent-price"
-      bairro: ".c49-property-card_address"        # ex: "Bom Retiro, Ipatinga - MG"
-      tipo: ".c49-property-card_type"              # ex: "Casa" (campo direto, sem precisar de regex)
-      thumbnail: ".c49-property-card_photo img"
-      thumbnail_attr: "src"
-    # Extrai bairro e cidade do campo de endereço: "Bairro, Cidade - UF"
-    endereco_regex: '^(?P<bairro>.+?),\s*(?P<cidade>.+?)\s*-\s*\w+$'
-
+      card: .c49-property-card
+      link: .c49-property-card_photo a
+      titulo: .c49-property-card_title
+      preco: .c49-property-card_rent-price
+      bairro: .c49-property-card_address
+      tipo: .c49-property-card_type
+      thumbnail: .c49-property-card_photo img
+      thumbnail_attr: src
+    endereco_regex: ^(?P<bairro>.+?),\s*(?P<cidade>.+?)\s*-\s*\w+$
   realize:
-    nome: "Imobiliária Realize"
-    logo: "https://www.realizeipatinga.com.br/wp-content/uploads/2017/01/logositeazul200x100-2-1.png"
-    base_url: "https://www.realizeipatinga.com.br"
-    listagem_url: "https://www.realizeipatinga.com.br/status/aluguel/page/{pagina}/"
-    cidade_padrao: "Ipatinga"
-    espera_seletor: ".property-item"
+    nome: Imobiliária Realize
+    logo: https://www.realizeipatinga.com.br/wp-content/uploads/2017/01/logositeazul200x100-2-1.png
+    base_url: https://www.realizeipatinga.com.br
+    listagem_url: https://www.realizeipatinga.com.br/status/aluguel/page/{pagina}/
+    cidade_padrao: Ipatinga
+    espera_seletor: .property-item
     paginacao:
-      tipo: "url"
+      tipo: url
       pagina_inicial: 1
       max_paginas: 20
     seletores:
-      card: "article.property-item"
-      link: "h4 a"
-      titulo: "h4 a"                # ex: "Apartamento – Iguaçu"
-      preco: "h5.price"              # ex: "R$ 4.500,00 /mês - Apartamento"
-      thumbnail: "figure img"
-      thumbnail_attr: "src"
-    # Extrai tipo e bairro do título: "Tipo – Bairro" (aceita hífen ou travessão)
-    titulo_regex: '^(?P<tipo>.+?)\s*[–-]\s*(?P<bairro>.+)$'
-
+      card: article.property-item
+      link: h4 a
+      titulo: h4 a
+      preco: h5.price
+      thumbnail: figure img
+      thumbnail_attr: src
+    titulo_regex: ^(?P<tipo>.+?)\s*[–-]\s*(?P<bairro>.+)$
   correta:
-    nome: "Correta Imóveis"
-    logo: "PREENCHER_url_do_logo"
-    base_url: "https://www.corretaimoveismg.com"
-    listagem_url: "https://www.corretaimoveismg.com/imoveis/aluguel"
-    cidade_padrao: "Ipatinga"
-    espera_seletor: ".work"
+    nome: Correta Imóveis
+    logo: PREENCHER_url_do_logo
+    base_url: https://www.corretaimoveismg.com
+    listagem_url: https://www.corretaimoveismg.com/imoveis/aluguel
+    cidade_padrao: Ipatinga
+    espera_seletor: .work
     paginacao:
-      tipo: "nenhuma"   # só 7 imóveis nessa página; existe paginação (/imoveis/aluguel/1)
-                         # mas vamos deixar pra depois, quando validarmos o padrão de URL
+      tipo: nenhuma
     seletores:
-      card: ".work"
-      link: "a"
-      preco: "h4"                     # ex: "R$ 1.250,00"
-      bairro: "p:nth-of-type(1)"       # ex: "CIDADE NOBRE" (1º <p> do card)
-      tipo: "p:nth-of-type(3)"         # ex: "Tipo: APARTAMENTO"
-      thumbnail: "img"
-      thumbnail_attr: "src"
-    # Só usada para deixar o bairro com capitalização normal (Cidade Nobre
-    # em vez de CIDADE NOBRE) — não tem cidade separada nesse card.
-    endereco_regex: '^(?P<bairro>.+)$'
-
+      card: .work
+      link: a
+      preco: h4
+      bairro: p:nth-of-type(1)
+      tipo: p:nth-of-type(3)
+      thumbnail: img
+      thumbnail_attr: src
+    endereco_regex: ^(?P<bairro>.+)$
   allex:
-    nome: "Allex Imóveis"
-    logo: "https://d27dpdmjvijufl.cloudfront.net/fotos/logo/png/2992.png"
-    base_url: "https://alleximoveis.com.br"
-    listagem_url: "https://alleximoveis.com.br/busca/categoria/20382-destaques-de-locacao?operacao=locacao"
-    cidade_padrao: "Ipatinga"
-    espera_seletor: ".box-imovel-resultado"
+    nome: Allex Imóveis
+    logo: https://d27dpdmjvijufl.cloudfront.net/fotos/logo/png/2992.png
+    base_url: https://alleximoveis.com.br
+    listagem_url: https://alleximoveis.com.br/busca/categoria/20382-destaques-de-locacao?operacao=locacao
+    cidade_padrao: Ipatinga
+    espera_seletor: .box-imovel-resultado
     paginacao:
-      tipo: "nenhuma"   # essa página mostra os destaques (~16); paginação completa fica para depois
+      tipo: nenhuma
     seletores:
-      card: ".box-imovel-resultado"
-      link: "a.imovel"
-      titulo: ".titulo-imovel h3"      # ex: "APARTAMENTO PARA LOCAÇÃO NO JARDIM PANORAMA"
-      preco: ".objeto-valor h5"         # texto "R$ 550,00" ou "Consultar"
-      bairro: ".imagem .info .light"    # ex: "Jardim Panorama - Ipatinga"
-      thumbnail: ".imagem img"
-      thumbnail_attr: "src"
-    # Extrai só o tipo do título (bairro/cidade vêm do campo de endereço)
-    titulo_regex: '^(?P<tipo>.+?)\s+(?:PARA\s+LOCA[ÇC][AÃ]O|EM\s)'
-    # Extrai bairro e cidade do campo de endereço: "Bairro - Cidade"
-    endereco_regex: '^(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$'
-
+      card: .box-imovel-resultado
+      link: a.imovel
+      titulo: .titulo-imovel h3
+      preco: .objeto-valor h5
+      bairro: .imagem .info .light
+      thumbnail: .imagem img
+      thumbnail_attr: src
+    titulo_regex: ^(?P<tipo>.+?)\s+(?:PARA\s+LOCA[ÇC][AÃ]O|EM\s)
+    endereco_regex: ^(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$
   diferencial:
-    nome: "Diferencial Imóveis"
-    logo: "https://cdn.imoview.com.br/diferencial/Site/imagens/55j45wmo.png"
-    base_url: "https://www.diferencialimoveis.com"
-    listagem_url: "https://www.diferencialimoveis.com/aluguel"
-    cidade_padrao: "Ipatinga"
-    integracao: "imoview_api"
-    api_url: "https://www.diferencialimoveis.com/retornar-imoveis-disponiveis"
+    nome: Diferencial Imóveis
+    logo: https://cdn.imoview.com.br/diferencial/Site/imagens/55j45wmo.png
+    base_url: https://www.diferencialimoveis.com
+    listagem_url: https://www.diferencialimoveis.com/aluguel
+    cidade_padrao: Ipatinga
+    integracao: imoview_api
+    api_url: https://www.diferencialimoveis.com/retornar-imoveis-disponiveis
     paginacao:
-      tipo: "api"
+      tipo: api
       max_paginas: 20
     seletores: {}
-
   portal_imoveis:
-    nome: "Portal Imóveis"
-    logo: ""
-    base_url: "https://portalimoveisimobiliaria.com.br"
-    listagem_url: "https://portalimoveisimobiliaria.com.br/imoveis-locacao"
-    cidade_padrao: "Ipatinga"
+    nome: Portal Imóveis
+    logo: ''
+    base_url: https://portalimoveisimobiliaria.com.br
+    listagem_url: https://portalimoveisimobiliaria.com.br/imoveis-locacao
+    cidade_padrao: Ipatinga
     preferir_localizacao_titulo: true
-    espera_seletor: ".featured-thumb.item"
+    espera_seletor: .featured-thumb.item
     paginacao:
-      tipo: "nenhuma"
+      tipo: nenhuma
     seletores:
-      card: ".featured-thumb.item"
-      # Evita os links do carrossel de fotos e usa o link textual do anúncio.
-      link: ".featured-thumb-data a[href*='/imoveis-locacao/']"
-      titulo: ".product-title"
-      preco: ".price"
-      bairro: ".product-title"
-      tipo: "h5"
-      thumbnail: ".carousel-item img"
-      thumbnail_attr: "data-src"
-    # Captura o último trecho antes de "- Cidade", não os quartos/vagas.
-    titulo_regex: '^.*\s+para\s+aluguel.*,(?P<bairro>[^,]+?)\s*-\s*(?P<cidade>[^/]+)'
-    # Alguns anúncios não exibem a cidade no título: "... no Iguaçu".
-    bairro_regex: '\b(?:no|na)\s+(?P<bairro>[^,\-]+)$'
-
+      card: .featured-thumb.item
+      link: .featured-thumb-data a[href*='/imoveis-locacao/']
+      titulo: .product-title
+      preco: .price
+      bairro: .product-title
+      tipo: h5
+      thumbnail: .carousel-item img
+      thumbnail_attr: data-src
+    titulo_regex: ^.*\s+para\s+aluguel.*,(?P<bairro>[^,]+?)\s*-\s*(?P<cidade>[^/]+)
+    bairro_regex: \b(?:no|na)\s+(?P<bairro>[^,\-]+)$
   moradia:
-    nome: "Moradia Imobiliária"
-    logo: ""
-    base_url: "https://moradiaimobiliaria.com.br"
-    listagem_url: "https://moradiaimobiliaria.com.br/imoveis/"
-    cidade_padrao: "Ipatinga"
-    finalidade: "aluguel"
+    nome: Moradia Imobiliária
+    logo: ''
+    base_url: https://moradiaimobiliaria.com.br
+    listagem_url: https://moradiaimobiliaria.com.br/imoveis/
+    cidade_padrao: Ipatinga
+    finalidade: aluguel
     preferir_localizacao_titulo: true
     paginacao:
-      tipo: "url"
+      tipo: url
       pagina_inicial: 1
       max_paginas: 20
-    espera_seletor: ".ere-item-wrap"
+    espera_seletor: .ere-item-wrap
     seletores:
-      card: ".ere-item-wrap"
-      link: "h2.property-title a[href]"
-      titulo: "h2.property-title"
-      preco: ".property-price"
-      bairro: ".property-location"
-      tipo: ".property-type-list"
-      status: ".property-status"
-      thumbnail: ".property-image img"
-      thumbnail_attr: "src"
-    titulo_regex: "^(?P<tipo>.+?)\\s+(?:para\\s+alugar|a\\s+venda).*?\\s+(?:no|na|em)\\s+(?P<bairro>.+?)\\s+em\\s+(?P<cidade>.+)$"
-
+      card: .ere-item-wrap
+      link: h2.property-title a[href]
+      titulo: h2.property-title
+      preco: .property-price
+      bairro: .property-location
+      tipo: .property-type-list
+      status: .property-status
+      thumbnail: .property-image img
+      thumbnail_attr: src
+    titulo_regex: ^(?P<tipo>.+?)\s+(?:para\s+alugar|a\s+venda).*?\s+(?:no|na|em)\s+(?P<bairro>.+?)\s+em\s+(?P<cidade>.+)$
   ferreira:
-    nome: "Ferreira Imóveis"
-    logo: ""
-    base_url: "https://ferreiraimoveis.net"
-    listagem_url: "https://ferreiraimoveis.net/imoveis/para-alugar"
-    cidade_padrao: "Ipatinga"
-    espera_seletor: "div.thumbnail_one.mb_30"
+    nome: Ferreira Imóveis
+    logo: ''
+    base_url: https://ferreiraimoveis.net
+    listagem_url: https://ferreiraimoveis.net/imoveis/para-alugar
+    cidade_padrao: Ipatinga
+    espera_seletor: div.thumbnail_one.mb_30
     paginacao:
-      tipo: "nenhuma"
+      tipo: nenhuma
     seletores:
-      card: "div.thumbnail_one.mb_30"
-      link: "a.property-card-link"
-      titulo: "h2.hover_primary.mb-0.property_card_heading"
-      preco: "div.mb_30.thumbnail_one"
-      bairro: "span.d-block.property_card_address.text-truncate"
-      thumbnail: "img"
-      thumbnail_attr: "src"
-    titulo_regex: '^(?P<tipo>.+?)\s+para\s+alugar'
-    endereco_regex: '^(?P<bairro>.+?),\s*(?P<cidade>.+?)(?:\s*-\s*MG)?$'
-
+      card: div.thumbnail_one.mb_30
+      link: a.property-card-link
+      titulo: h2.hover_primary.mb-0.property_card_heading
+      preco: div.mb_30.thumbnail_one
+      bairro: span.d-block.property_card_address.text-truncate
+      thumbnail: img
+      thumbnail_attr: src
+    titulo_regex: ^(?P<tipo>.+?)\s+para\s+alugar
+    endereco_regex: ^(?P<bairro>.+?),\s*(?P<cidade>.+?)(?:\s*-\s*MG)?$
   catedral:
-    nome: "Catedral Imobiliária"
-    logo: ""
-    base_url: "https://www.catedralimobiliaria.com.br"
-    listagem_url: "https://www.catedralimobiliaria.com.br/imoveis/para-alugar"
-    cidade_padrao: "Coronel Fabriciano"
-    espera_seletor: "div.thumbnail_one.mb_30"
+    nome: Catedral Imobiliária
+    logo: ''
+    base_url: https://www.catedralimobiliaria.com.br
+    listagem_url: https://www.catedralimobiliaria.com.br/imoveis/para-alugar
+    cidade_padrao: Coronel Fabriciano
+    espera_seletor: div.thumbnail_one.mb_30
     paginacao:
-      tipo: "nenhuma"
+      tipo: nenhuma
     seletores:
-      card: "div.thumbnail_one.mb_30"
-      link: "a.property-card-link"
-      titulo: "h2.hover_primary.mb-0.property_card_heading"
-      preco: "div.mb_30.thumbnail_one"
-      bairro: "span.d-block.property_card_address.text-truncate"
-      thumbnail: "img"
-      thumbnail_attr: "src"
-    titulo_regex: '^(?P<tipo>.+?)\s+para\s+alugar'
-    endereco_regex: '^(?P<bairro>.+?),\s*(?P<cidade>.+?)(?:\s*-\s*MG)?$'
-
+      card: div.thumbnail_one.mb_30
+      link: a.property-card-link
+      titulo: h2.hover_primary.mb-0.property_card_heading
+      preco: div.mb_30.thumbnail_one
+      bairro: span.d-block.property_card_address.text-truncate
+      thumbnail: img
+      thumbnail_attr: src
+    titulo_regex: ^(?P<tipo>.+?)\s+para\s+alugar
+    endereco_regex: ^(?P<bairro>.+?),\s*(?P<cidade>.+?)(?:\s*-\s*MG)?$
   me_imobiliaria:
-    nome: "M.E. Imobiliária"
-    logo: ""
-    base_url: "https://www.meimobiliaria.com.br"
-    listagem_url: "https://www.meimobiliaria.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina=1"
-    cidade_padrao: "Ipatinga"
-    espera_seletor: ".property"
+    nome: M.E. Imobiliária
+    logo: ''
+    base_url: https://www.meimobiliaria.com.br
+    listagem_url: https://www.meimobiliaria.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina=1
+    cidade_padrao: Ipatinga
+    espera_seletor: .property
     paginacao:
-      tipo: "nenhuma"
+      tipo: nenhuma
     seletores:
-      card: ".property"
-      link: "a"
-      titulo: "h1.title"
-      preco: ".property-price"
-      thumbnail: ".property-img img"
-      thumbnail_attr: "src"
-    titulo_regex: '^(?P<tipo>.+?)\s*\|\s*.*?-\s*(?P<bairro>[^-|]+)\s*-\s*(?P<cidade>[^|]+)'
-
+      card: .property
+      link: a
+      titulo: h1.title
+      preco: .property-price
+      thumbnail: .property-img img
+      thumbnail_attr: src
+    titulo_regex: ^(?P<tipo>.+?)\s*\|\s*.*?-\s*(?P<bairro>[^-|]+)\s*-\s*(?P<cidade>[^|]+)
   minas_caixa:
-    nome: "Minas Caixa Imóveis"
-    logo: ""
-    base_url: "https://www.minascaixaimoveis.com.br"
-    listagem_url: "https://www.minascaixaimoveis.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina=1"
-    cidade_padrao: "Timóteo"
-    espera_seletor: ".property"
+    nome: Minas Caixa Imóveis
+    logo: ''
+    base_url: https://www.minascaixaimoveis.com.br
+    listagem_url: https://www.minascaixaimoveis.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina=1
+    cidade_padrao: Timóteo
+    espera_seletor: .property
     paginacao:
-      tipo: "nenhuma"
+      tipo: nenhuma
     seletores:
-      card: ".property"
-      link: "a"
-      titulo: "h1.title"
-      preco: ".property-price"
-      thumbnail: ".property-img img"
-      thumbnail_attr: "src"
-    titulo_regex: '^(?P<tipo>.+?)\s*\|\s*(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$'
-
+      card: .property
+      link: a
+      titulo: h1.title
+      preco: .property-price
+      thumbnail: .property-img img
+      thumbnail_attr: src
+    titulo_regex: ^(?P<tipo>.+?)\s*\|\s*(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$
   portal_timoteo:
-    nome: "Portal Imóveis Timóteo"
-    logo: ""
-    base_url: "https://www.imobiliariaportalmg.com.br"
-    listagem_url: "https://www.imobiliariaportalmg.com.br/imoveis_listagem.php?neg=locacao"
-    cidade_padrao: "Timóteo"
-    espera_seletor: "li.li-imovel"
+    nome: Portal Imóveis Timóteo
+    logo: ''
+    base_url: https://www.imobiliariaportalmg.com.br
+    listagem_url: https://www.imobiliariaportalmg.com.br/imoveis_listagem.php?neg=locacao
+    cidade_padrao: Timóteo
+    espera_seletor: li.li-imovel
     paginacao:
-      tipo: "nenhuma"
+      tipo: nenhuma
     seletores:
-      card: "li.li-imovel"
-      link: "a.li-imovel__imagem-link"
-      titulo: "h3.li-imovel__titulo"
-      preco: "div.li-imovel__descricao"
-      bairro: "span.li-imovel__bairro"
-      thumbnail: "img.li-imovel__imagem"
-      thumbnail_attr: "src"
-    titulo_regex: '^(?P<tipo>.+?)\s+(?P<bairro>.+?)\s*[–-]\s*(?P<cidade>.+)$'
-
-# =============================================================================
-# CONFIGURAÇÃO DE AGENDAMENTO
-# =============================================================================
+      card: li.li-imovel
+      link: a.li-imovel__imagem-link
+      titulo: h3.li-imovel__titulo
+      preco: div.li-imovel__descricao
+      bairro: span.li-imovel__bairro
+      thumbnail: img.li-imovel__imagem
+      thumbnail_attr: src
+    titulo_regex: ^(?P<tipo>.+?)\s+(?P<bairro>.+?)\s*[–-]\s*(?P<cidade>.+)$
+  buskaza:
+    nome: Buskaza
+    logo: ''
+    base_url: https://www.buskaza.com.br
+    listagem_url: https://www.buskaza.com.br/aluguel/mg/materlandia
+    cidade_padrao: Materlândia
+    finalidade: aluguel
+    espera_seletor: div.property-card-container
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: div.property-card-container
+      link: a.no-decoration
+      titulo: h2.title
+      preco: div.price-box
+      thumbnail: img.image-fallback.lazy-img
+      thumbnail_attr: src
+  attria:
+    nome: Attria
+    logo: ''
+    base_url: https://www.attria.com.br
+    listagem_url: https://www.attria.com.br/aluguel/mg
+    cidade_padrao: Coluna
+    finalidade: aluguel
+    espera_seletor: article.listing-item
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: article.listing-item
+      link: a.lazy.listing-img-container
+      preco: div.listing-info
+      thumbnail: img.lazyload
+      thumbnail_attr: data-src
+  imobiliariajj:
+    nome: Imóveis para locação
+    logo: ''
+    base_url: https://www.imobiliariajj.com.br
+    listagem_url: https://www.imobiliariajj.com.br/imoveisealugueis/imoveis/locacao
+    cidade_padrao: Rio Vermelho
+    finalidade: aluguel
+    espera_seletor: li.jetgrid__col--8.jetgrid__col--md-12.jetgrid__col--xs-24.list__card-item
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: li.jetgrid__col--8.jetgrid__col--md-12.jetgrid__col--xs-24.list__card-item
+      link: a.ui-card__link
+      preco: a.ui-card__link
+      bairro: p.ui-card__address
+      thumbnail: img.ui-card__img
+      thumbnail_attr: src
+  netimoveis:
+    nome: Netimóveis
+    logo: ''
+    base_url: https://www.netimoveis.com
+    listagem_url: https://www.netimoveis.com/locacao/minas-gerais/belo-horizonte/nordeste/dom-joaquim?transacao=locacao&localizacao=BR-MG-belo-horizonte-dom-joaquim-nordeste-&pagina=1
+    cidade_padrao: Dom Joaquim
+    finalidade: aluguel
+    espera_seletor: article.card-imovel
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: article.card-imovel
+      link: a.link-imovel
+      preco: div.info-bottom.mt-2
+      bairro: div.endereco
+      thumbnail: img.defer.featured-image.swiper-slide
+      thumbnail_attr: src
+  delasimoveis:
+    nome: Imóveis Disponíveis, Locação
+    logo: ''
+    base_url: https://www.delasimoveis.com.br
+    listagem_url: https://www.delasimoveis.com.br/imovel/locacao
+    cidade_padrao: Ipatinga
+    finalidade: aluguel
+    espera_seletor: div.imovelcard
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: div.imovelcard
+      link: a.col.imovelcard__img
+      titulo: h2.imovelcard__info__tag
+      preco: div.col.imovelcard__valor
+      bairro: h2.imovelcard__info__local
+      thumbnail: img
+      thumbnail_attr: src
+  arthusoimoveis:
+    nome: Arthuso Imóveis
+    logo: ''
+    base_url: https://arthusoimoveis.com.br
+    listagem_url: https://arthusoimoveis.com.br/property/casa-disponivel-para-locacao-no-bairro-santa-maria-timoteo-mg/
+    cidade_padrao: Timóteo
+    finalidade: aluguel
+    espera_seletor: div.card.houzez-gallery-loaded.hz-item-gallery-js.item-listing-wrap
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: div.card.houzez-gallery-loaded.hz-item-gallery-js.item-listing-wrap
+      link: a.hover-effect.listing-featured-thumb
+      titulo: h2.item-title
+      preco: div.item-header
+      bairro: address.item-address
+      thumbnail: img.img-fluid
+      thumbnail_attr: src
+  dudaimoveis:
+    nome: Imóveis para alugar em Içara
+    logo: ''
+    base_url: https://www.dudaimoveis.com.br
+    listagem_url: https://www.dudaimoveis.com.br/alugar/icara
+    cidade_padrao: Rio Acima
+    finalidade: aluguel
+    espera_seletor: li.bg-white.exclusive.flex.flex-col.imovel.justify-start.overflow-hidden.rounded-2xl
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: li.bg-white.exclusive.flex.flex-col.imovel.justify-start.overflow-hidden.rounded-2xl
+      link: a.color-cor-4.text-p7
+      titulo: h2.color-cor-4.title-h9
+      preco: div.flex.items-end.justify-between
+      thumbnail: img.h-full.mx-auto.object-cover.rounded-t-2xl.w-full
+      thumbnail_attr: src
+  vivendabrumadinho:
+    nome: Vivenda Imóveis Brumadinho
+    logo: ''
+    base_url: https://www.vivendabrumadinho.com.br
+    listagem_url: https://www.vivendabrumadinho.com.br/status-imoveis/imoveis-para-alugar/
+    cidade_padrao: Brumadinho
+    finalidade: aluguel
+    espera_seletor: article.clearfix.hentry.listing-post-odd.property-listing-simple.property-listing-simple-1
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: article.clearfix.hentry.listing-post-odd.property-listing-simple.property-listing-simple-1
+      link: a.btn-default.visible-md-inline-block
+      titulo: h3.entry-title
+      preco: div.hidden-lg.price-wrapper
+      bairro: p.property-address.visible-lg
+      thumbnail: img.img-responsive.wp-post-image
+      thumbnail_attr: src
+  lopescontagem:
+    nome: Imobiliária
+    logo: ''
+    base_url: https://www.lopescontagem.com.br
+    listagem_url: https://www.lopescontagem.com.br/alugar/CONTAGEM/Casa
+    cidade_padrao: Contagem
+    finalidade: aluguel
+    espera_seletor: div.align-self-stretch.col-12.col-lg-6.col-md-12.col-xl-4.d-flex.justify-content-center.ms-lg-0.mt-4.muda_card1
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: div.align-self-stretch.col-12.col-lg-6.col-md-12.col-xl-4.d-flex.justify-content-center.ms-lg-0.mt-4.muda_card1
+      link: a.carousel-cell.is-selected
+      titulo: h2.card-titulo.corta-card-titulo
+      preco: div.muda_card2
+      bairro: div.card-bairro-cidade
+      thumbnail: img.card-img-top.carousel-cell-image.flickity-lazyloaded.img-card-imo
+      thumbnail_attr: src
+  negociarimoveis:
+    nome: Imóveis para aluguel  na Região de Betim
+    logo: ''
+    base_url: https://www.negociarimoveis.com.br
+    listagem_url: https://www.negociarimoveis.com.br/aluguel/?&pagina=1
+    cidade_padrao: Betim
+    finalidade: aluguel
+    espera_seletor: div.col-12.col-lg-6.col-md-6.col-sm-6.col-xl-4.wrap_card_imovel
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: div.col-12.col-lg-6.col-md-6.col-sm-6.col-xl-4.wrap_card_imovel
+      link: a.meuLink
+      titulo: h2.card-title.card_imovel_color
+      preco: div.card_imovel_color_destaque.preco-imovel-card
+      bairro: div.carousel.local2.slide
+      thumbnail: img.img-imovel
+      thumbnail_attr: src
+  deztop:
+    nome: Deztop
+    logo: ''
+    base_url: https://deztop.com
+    listagem_url: https://deztop.com/br/aluguel/imoveis/mg/confins
+    cidade_padrao: Confins
+    finalidade: aluguel
+    espera_seletor: article.col-12.col-sm-6.col-xl-4.mb-5.position-relative
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: article.col-12.col-sm-6.col-xl-4.mb-5.position-relative
+      link: a.stretched-link
+      titulo: h3.fs-6.text-truncate
+      preco: div.mt-auto
+      thumbnail: img.bg-skeleton.h-100.rounded-5.shadow.w-100
+      thumbnail_attr: src
+  diferencialimoveismg:
+    nome: Imóveis Disponíveis, Locação, Apartamento, Esmeraldas
+    logo: ''
+    base_url: https://www.diferencialimoveismg.com.br
+    listagem_url: https://www.diferencialimoveismg.com.br/imovel/locacao/apartamento/esmeraldas/?&pag=1
+    cidade_padrao: Esmeraldas
+    finalidade: aluguel
+    espera_seletor: div.imovelcard
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: div.imovelcard
+      link: a.col.imovelcard__img
+      titulo: h2.imovelcard__info__tag
+      preco: div.col.imovelcard__valor
+      bairro: h2.imovelcard__info__local
+      thumbnail: img
+      thumbnail_attr: src
+  alfenasimoveis:
+    nome: Imóveis para aluguel  na Região de Contagem
+    logo: ''
+    base_url: https://www.alfenasimoveis.com.br
+    listagem_url: https://www.alfenasimoveis.com.br/aluguel/?&pagina=1&ordenacao=datainclusaodesc
+    cidade_padrao: Contagem
+    finalidade: aluguel
+    espera_seletor: div.col-12.col-lg-6.col-md-6.col-sm-6.col-xl-4.wrap_card_imovel
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: div.col-12.col-lg-6.col-md-6.col-sm-6.col-xl-4.wrap_card_imovel
+      link: a.meuLink
+      titulo: h2.card-title.card_imovel_color
+      preco: div.card_imovel_color_destaque.preco-imovel-card
+      bairro: div.carousel.local2.slide
+      thumbnail: img.img-imovel
+      thumbnail_attr: src
+  estadodeminas:
+    nome: Apartamentos e Casas para alugar em Sabará
+    logo: ''
+    base_url: https://estadodeminas.lugarcerto.com.br
+    listagem_url: https://estadodeminas.lugarcerto.com.br/busca/aluguel/mg/sabara
+    cidade_padrao: Sabará
+    finalidade: aluguel
+    espera_seletor: div.active-hover-layer.anuncio-lista-item.green.row
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: div.active-hover-layer.anuncio-lista-item.green.row
+      link: a.col-sm-2.col-xs-3.hidden-sxs.property-absolute
+      titulo: h2.margin-0
+      preco: span.hidden-sm.hidden-xs
+      bairro: span.resultados-da-busca-localizacao
+      thumbnail: img.center-block.img-responsive.stlle100
+      thumbnail_attr: src
+  jfimobiliaria:
+    nome: Resultados de Busca
+    logo: ''
+    base_url: https://jfimobiliaria.com
+    listagem_url: https://jfimobiliaria.com/resultados-de-busca/?keyword=&status%5B%5D=aluguel
+    cidade_padrao: Monte Formoso
+    finalidade: aluguel
+    espera_seletor: div.houzez-gallery-loaded.hz-item-gallery-js.hz-map-trigger.item-listing-wrap.item-wrap-v1
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: div.houzez-gallery-loaded.hz-item-gallery-js.hz-map-trigger.item-listing-wrap.item-wrap-v1
+      link: a.label.label-status.status-color-81
+      titulo: h2.item-title.mb-2
+      preco: div.item-header
+      bairro: address.item-address.mb-2
+      thumbnail: img.img-fluid
+      thumbnail_attr: src
+  eugeniolopes:
+    nome: Locação
+    logo: ''
+    base_url: https://eugeniolopes.com.br
+    listagem_url: https://eugeniolopes.com.br/aluguel/?status=aluguel
+    cidade_padrao: Ponto Dos Volantes
+    finalidade: aluguel
+    espera_seletor: article.rh_prop_card.rh_prop_card--listing
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: article.rh_prop_card.rh_prop_card--listing
+      link: a.add-to-compare.rh_trigger_compare
+      preco: div.rh_prop_card__priceLabel
+      thumbnail: img.attachment-modern-property-child-slider.size-modern-property-child-slider.wp-post-image
+      thumbnail_attr: src
 agendamento:
-  intervalo_horas: 6        # roda a cada 6 horas
-  horario_fixo: "09:10"     # roda todo dia às 9:10 (formato HH:MM)
-
-# =============================================================================
-# GEOCODIFICAÇÃO (bairro -> latitude/longitude)
-# =============================================================================
+  intervalo_horas: 6
+  horario_fixo: 09:10
 geocodificacao:
-  provedor: "nominatim"
-  user_agent: "imoveis-scraper-app (uso pessoal)"
-  pais: "Brasil"
+  provedor: nominatim
+  user_agent: imoveis-scraper-app (uso pessoal)
+  pais: Brasil
