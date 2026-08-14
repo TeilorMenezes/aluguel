@@ -325,6 +325,7 @@ class DiscoveryAndOverrideTest(unittest.TestCase):
                 patch.object(scraper.db, "remover_ausentes"),
                 patch.object(scraper.db, "registrar_status_site"),
                 patch.object(scraper.db, "registrar_execucao"),
+                patch.object(scraper.db, "contar_imoveis_site", return_value=0),
             ):
                 total, error = scraper.rodar_varredura(
                     sites_filtrados=["dommusimoveis"]

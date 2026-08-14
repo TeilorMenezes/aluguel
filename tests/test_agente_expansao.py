@@ -1,13 +1,17 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from agente_expansao.engine import ExpansionEngine, classify
+from agente_expansao.integrations import ProjectAdapter
 from agente_expansao.publication import (
     build_preview,
     merge_site_blocks,
     publish_pull_request,
+    publish_snapshot_pull_request,
 )
+from agente_expansao import publication
 from agente_expansao.storage import Repository
 
 
@@ -58,6 +62,35 @@ class FakeAdapter:
 
 
 class AgentExpansionTest(unittest.TestCase):
+    def test_project_adapter_normaliza_contrato_do_detector(self):
+        raw = {
+            "confianca": 0.91, "plataforma": "wordpress",
+            "seletores": {"card": ".card"}, "evidencias": {"cards": 8},
+        }
+        with patch("agente_expansao.integrations.inspecionar_url", return_value=raw):
+            result = ProjectAdapter().inspect("https://exemplo.test/aluguel")
+        self.assertEqual(result["confidence"], 0.91)
+        self.assertEqual(result["platform"], "wordpress")
+        self.assertEqual(result["selectors"]["card"], ".card")
+        self.assertEqual(result["evidence"]["cards"], 8)
+
+    def test_stale_override_blocks_snapshot_publication_before_external_call(self):
+        with tempfile.TemporaryDirectory() as folder:
+            folder = Path(folder)
+            local, proposal = folder / "local.yaml", folder / "proposal.yaml"
+            local.write_text("sites: {}\n", encoding="utf-8")
+            proposal.write_text("sites: {exemplo: {}}\n", encoding="utf-8")
+            with (
+                patch.object(publication, "LOCAL_OVERRIDE_PATH", local),
+                patch.object(publication, "PROPOSAL_OVERRIDE_PATH", proposal),
+                patch.object(publication, "PROPOSAL_DB_PATH", folder / "db"),
+                patch.object(publication, "PROPOSAL_MANIFEST_PATH", folder / "manifest"),
+                patch.object(publication, "validate_snapshot", return_value={"valid": True}),
+                patch.object(publication, "diagnose") as diagnose,
+            ):
+                with self.assertRaisesRegex(ValueError, "mudou"):
+                    publish_snapshot_pull_request("PUBLICAR NO GITHUB")
+            diagnose.assert_not_called()
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.repo = Repository(Path(self.temp.name) / "agent.db")

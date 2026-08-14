@@ -25,6 +25,12 @@ from descobrir_sites import (  # noqa: E402
 )
 from detector import avaliar_extracao, inspecionar_url  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
+from url_safety import (  # noqa: E402
+    DETECTOR_USER_AGENT,
+    proteger_pagina,
+    validar_url_publica,
+    verificar_robots,
+)
 
 
 class ProjectAdapter:
@@ -134,18 +140,26 @@ class ProjectAdapter:
 
     def inspect(self, url: str) -> dict:
         result = inspecionar_url(url)
-        if "erro" in result:
-            result["error"] = result.pop("erro")
-        return result
+        aliases = {
+            "erro": "error", "confianca": "confidence",
+            "plataforma": "platform", "seletores": "selectors",
+            "evidencias": "evidence",
+        }
+        normalized = dict(result)
+        for source, target in aliases.items():
+            if source in normalized:
+                normalized[target] = normalized.pop(source)
+        return normalized
 
     def validate_learned_selectors(self, url: str, selectors: dict) -> dict:
         """Revalida no DOM renderizado uma correção aprendida anteriormente."""
+        validar_url_publica(url)
+        verificar_robots(url)
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
-            page = browser.new_page(
-                user_agent="Mozilla/5.0 (compatible; AgenteExpansao/0.1)"
-            )
+            page = browser.new_page(user_agent=DETECTOR_USER_AGENT)
             try:
+                proteger_pagina(page, url)
                 page.goto(url, timeout=60000, wait_until="domcontentloaded")
                 page.wait_for_timeout(4000)
                 result = avaliar_extracao(page.content(), selectors, page.url)

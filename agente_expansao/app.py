@@ -4,8 +4,10 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import streamlit as st
+import yaml
 
 APP_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_DIR.parent
@@ -38,6 +40,14 @@ from agente_expansao.publication import (  # noqa: E402
 from agente_expansao.storage import Repository  # noqa: E402
 from agente_expansao.visual_picker import pick_selectors  # noqa: E402
 from agente_expansao.resources import recommended_workers  # noqa: E402
+from agente_expansao.selector_config import (  # noqa: E402
+    REQUIRED_SELECTORS,
+    config_signature,
+    list_persisted_overrides,
+    proposal_override_is_stale,
+    save_edited_override,
+    validate_override,
+)
 from snapshot_publico import PUBLIC_DB_PATH  # noqa: E402
 
 
@@ -259,8 +269,12 @@ def render_property_preview(rows: list[dict], maximum: int = 12) -> None:
     for index, item in enumerate(rows[:maximum]):
         with columns[index % 3]:
             with st.container(border=True):
-                if item.get("thumbnail_url"):
-                    st.image(item["thumbnail_url"], use_container_width=True)
+                thumbnail = str(item.get("thumbnail_url") or "").strip()
+                parsed_thumbnail = urlsplit(thumbnail)
+                if parsed_thumbnail.scheme in {"http", "https"} and parsed_thumbnail.netloc:
+                    st.image(thumbnail, use_container_width=True)
+                elif thumbnail:
+                    st.caption("Imagem indisponível para pré-visualização.")
                 st.write(item.get("titulo") or item.get("imobiliaria") or "Sem título")
                 price = item.get("preco")
                 st.write(
@@ -458,89 +472,282 @@ with tab_teach:
     target = st.selectbox("Imobiliária a ensinar", list(targets), format_func=targets.get)
     target_type, target_id = target.split(":", 1)
     if target_type == "site":
+        target_site_key = target_id
+        target_base_url = sites[target_id].get("base_url")
         default_url = sites[target_id].get("listagem_url") or sites[target_id].get("base_url")
     else:
         selected_candidate = next(
             item for item in teach_candidates if item["id"] == int(target_id)
         )
+        target_site_key = candidate_site_key(selected_candidate)
+        target_base_url = selected_candidate["official_url"]
         default_url = selected_candidate.get("rental_url") or selected_candidate["official_url"]
+    persisted_for_target = list_persisted_overrides().get(target_site_key) or {}
+    default_url = persisted_for_target.get("listagem_url") or default_url
     picker_url = st.text_input("Página inicial", value=default_url, key=f"picker_url_{target}")
-    if st.button("Abrir navegador para selecionar", type="primary"):
+    auto_col, visual_col = st.columns(2)
+    if auto_col.button("Detectar caminhos automaticamente", type="primary"):
+        with st.spinner("Analisando os cards e validando os campos encontrados..."):
+            try:
+                inspection = adapter.inspect(picker_url)
+                if inspection.get("error"):
+                    raise ValueError(inspection["error"])
+                selectors = inspection.get("selectors") or {}
+                if not {"card", "link", "preco"}.issubset(selectors):
+                    raise ValueError(
+                        "A página não forneceu uma amostra suficiente. Use a seleção visual."
+                    )
+                for field in REQUIRED_SELECTORS:
+                    st.session_state.pop(f"manual_path_{target}_{field}", None)
+                st.session_state.pop(f"manual_pagination_{target}", None)
+                st.session_state.pop(f"manual_filters_{target}", None)
+                pagination = persisted_for_target.get("paginacao") or {}
+                filters = persisted_for_target.get("filtros") or {}
+                signature = config_signature({
+                    "url": inspection.get("url") or picker_url,
+                    "seletores": selectors,
+                    "paginacao": pagination,
+                    "filtros": filters,
+                })
+                st.session_state["manual_picker_result"] = {
+                    "target": target,
+                    "url": inspection.get("url") or picker_url,
+                    "selectors": selectors,
+                    "pagination": pagination,
+                    "filters": filters,
+                    "validation": inspection,
+                    "validation_signature": signature,
+                    "automatic": True,
+                }
+                st.rerun()
+            except Exception as exc:
+                st.error(f"A detecção automática não foi concluída: {exc}")
+    if visual_col.button("Abrir navegador para selecionar"):
         with st.spinner("Aguardando sua seleção no navegador externo..."):
             try:
                 picked = pick_selectors(picker_url)
                 checked = adapter.validate_learned_selectors(
                     picked["url"], picked["selectors"]
                 )
+                for field in REQUIRED_SELECTORS:
+                    st.session_state.pop(f"manual_path_{target}_{field}", None)
+                st.session_state.pop(f"manual_pagination_{target}", None)
+                st.session_state.pop(f"manual_filters_{target}", None)
                 st.session_state["manual_picker_result"] = {
                     "target": target,
                     **picked,
                     "validation": checked,
+                    "validation_signature": config_signature({
+                        "url": picked["url"],
+                        "seletores": picked["selectors"],
+                        "paginacao": picked.get("pagination") or {},
+                        "filtros": picked.get("filters") or {},
+                    }),
                 }
             except Exception as exc:
                 st.error(str(exc))
 
     manual = st.session_state.get("manual_picker_result")
+    if (
+        (not manual or manual.get("target") != target)
+        and set(REQUIRED_SELECTORS).issubset(persisted_for_target.get("seletores") or {})
+    ):
+        manual = {
+            "target": target,
+            "url": persisted_for_target.get("listagem_url") or picker_url,
+            "selectors": persisted_for_target["seletores"],
+            "pagination": persisted_for_target.get("paginacao") or {},
+            "filters": persisted_for_target.get("filtros") or {},
+            "validation": {},
+            "validation_signature": "",
+            "loaded_from_saved": True,
+        }
     if manual and manual.get("target") == target:
-        validation = manual["validation"]
-        st.code(
-            json.dumps(manual["selectors"], ensure_ascii=False, indent=2),
-            language="json",
+        st.markdown("### Ajustar caminhos aprendidos")
+        if manual.get("loaded_from_saved"):
+            st.info("O aprendizado salvo desta imobiliária foi carregado para edição.")
+        elif manual.get("automatic"):
+            ai_info = (manual.get("validation") or {}).get("ia") or {}
+            if ai_info.get("used"):
+                st.info("A heurística foi complementada pela IA e revalidada no site.")
+            else:
+                st.info("Os caminhos foram detectados e validados automaticamente no site.")
+        st.caption(
+            "Os valores abaixo vieram da seleção visual. Você pode substituir "
+            "qualquer caminho por um seletor CSS copiado do Inspetor do navegador."
         )
-        st.write("**Navegação aprendida**")
-        st.json({
-            "paginação": manual.get("pagination", {}),
+        edited_selectors = dict(manual.get("selectors") or {})
+        editor_version = manual.get("validation_signature") or config_signature({
+            "url": manual.get("url"),
+            "seletores": manual.get("selectors") or {},
+            "paginacao": manual.get("pagination") or {},
             "filtros": manual.get("filters") or {},
         })
-        rates = validation.get("taxas_campos", {})
-        cols = st.columns(4)
-        for col, field in zip(cols, ("titulo", "preco", "thumbnail", "link")):
-            col.metric(field.capitalize(), f"{float(rates.get(field, 0)):.0%}")
-        if validation.get("publicavel"):
-            st.success("Os caminhos passaram na validação automática.")
-        else:
-            st.warning(" ".join(validation.get("motivos_validacao", [])))
+        selector_labels = {
+            "card": "Card", "link": "Link", "titulo": "Título",
+            "preco": "Preço", "thumbnail": "Thumbnail",
+        }
+        selector_columns = st.columns(2)
+        for index, field in enumerate(REQUIRED_SELECTORS):
+            with selector_columns[index % 2]:
+                edited_selectors[field] = st.text_input(
+                    selector_labels[field],
+                    value=edited_selectors.get(field, ""),
+                    key=f"manual_path_{target}_{editor_version}_{field}",
+                )
+        st.write("**Navegação aprendida**")
+        pagination_text = st.text_area(
+            "Paginação (YAML editável)",
+            value=yaml.safe_dump(
+                manual.get("pagination") or {}, allow_unicode=True, sort_keys=False
+            ),
+            key=f"manual_pagination_{target}_{editor_version}",
+        )
+        filters_text = st.text_area(
+            "Filtros (YAML editável)",
+            value=yaml.safe_dump(
+                manual.get("filters") or {}, allow_unicode=True, sort_keys=False
+            ),
+            key=f"manual_filters_{target}_{editor_version}",
+        )
+
+        try:
+            edited_pagination = yaml.safe_load(pagination_text) or {}
+            edited_filters = yaml.safe_load(filters_text) or {}
+            if not isinstance(edited_pagination, dict) or not isinstance(edited_filters, dict):
+                raise ValueError("Paginação e filtros devem conter campos no formato chave: valor.")
+            manual_draft = {
+                "base_url": persisted_for_target.get("base_url") or target_base_url,
+                "listagem_url": manual["url"],
+                "seletores": edited_selectors,
+                "paginacao": edited_pagination,
+                "filtros": edited_filters,
+            }
+            validate_override(manual_draft)
+            manual_error = ""
+            manual_signature = config_signature({
+                "url": manual["url"],
+                "seletores": edited_selectors,
+                "paginacao": edited_pagination,
+                "filtros": edited_filters,
+            })
+        except Exception as exc:
+            manual_draft = None
+            manual_error = str(exc)
+            manual_signature = ""
+            st.warning(f"Revise os caminhos: {exc}")
+
+        test_is_current = (
+            bool(manual_signature)
+            and manual.get("validation_signature") == manual_signature
+        )
+        if not test_is_current and manual_signature:
+            if manual.get("loaded_from_saved") and not manual.get("validation_signature"):
+                st.info("Teste a configuração carregada antes de salvar.")
+            else:
+                st.info("Você alterou os caminhos. Teste novamente antes de salvar.")
+        if st.button("Testar caminhos editados", key=f"test_manual_paths_{target}"):
+            try:
+                if manual_draft is None:
+                    raise ValueError(manual_error)
+                checked = adapter.validate_learned_selectors(
+                    manual["url"], manual_draft["seletores"]
+                )
+                st.session_state["manual_picker_result"] = {
+                    **manual,
+                    "selectors": edited_selectors,
+                    "pagination": edited_pagination,
+                    "filters": edited_filters,
+                    "validation": checked,
+                    "validation_signature": manual_signature,
+                }
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Não foi possível testar: {exc}")
+
+        validation = manual.get("validation", {}) if test_is_current else {}
+        if test_is_current:
+            rates = validation.get("taxas_campos", {})
+            cols = st.columns(4)
+            for col, field in zip(cols, ("titulo", "preco", "thumbnail", "link")):
+                col.metric(field.capitalize(), f"{float(rates.get(field, 0)):.0%}")
+            if validation.get("publicavel"):
+                st.success("Os caminhos passaram na validação automática.")
+            else:
+                st.warning(" ".join(validation.get("motivos_validacao", [])))
         manual_override = st.checkbox(
             "Revisei visualmente e quero salvar mesmo com o aviso acima.",
-            disabled=bool(validation.get("publicavel")),
+            disabled=not test_is_current or bool(validation.get("publicavel")),
         )
         if st.button(
             "Salvar aprendizado",
-            disabled=not validation.get("publicavel") and not manual_override,
+            disabled=(
+                not test_is_current
+                or (not validation.get("publicavel") and not manual_override)
+            ),
         ):
             try:
-                if target_type == "site":
-                    save_selector_override(
-                        target_id, manual["url"], manual["selectors"],
-                        pagination=manual.get("pagination"),
-                        filters=manual.get("filters"),
+                if manual_draft is None:
+                    raise ValueError(manual_error)
+                edited_snapshot = {
+                    **persisted_for_target,
+                    "listagem_url": manual["url"],
+                    "seletores": edited_selectors,
+                    "paginacao": edited_pagination,
+                    "filtros": edited_filters,
+                }
+                if persisted_for_target:
+                    save_edited_override(
+                        target_site_key,
+                        edited_snapshot,
+                        tested_signature=config_signature(edited_snapshot),
+                        test_result=validation,
+                        force=not bool(validation.get("publicavel")),
+                        justification=(
+                            "Revisado visualmente no fluxo Ensinar caminhos."
+                            if not validation.get("publicavel") else ""
+                        ),
                     )
+                if target_type == "site":
+                    if not persisted_for_target:
+                        save_selector_override(
+                            target_id, manual["url"], edited_selectors,
+                            pagination=edited_pagination,
+                            filters=edited_filters,
+                        )
                     repository.log(
                         "aprendizado_visual",
                         f"Seletores visuais salvos para {target_id}.",
-                        details=manual,
+                        details={
+                            **manual,
+                            "selectors": edited_selectors,
+                            "pagination": edited_pagination,
+                            "filters": edited_filters,
+                            "validation": validation,
+                        },
                     )
                 else:
                     candidate_id = int(target_id)
                     candidate = repository.get_candidate(candidate_id)
                     learned_site_key = candidate_site_key(candidate)
-                    save_selector_override(
-                        learned_site_key,
-                        manual["url"],
-                        manual["selectors"],
-                        {
-                            "nome": candidate.get("name") or candidate["domain"],
-                            "base_url": candidate["official_url"],
-                            "cidade_padrao": candidate.get("city") or "",
-                            "paginacao": {"tipo": "nenhuma"},
-                        },
-                        pagination=manual.get("pagination"),
-                        filters=manual.get("filters"),
-                    )
+                    if not persisted_for_target:
+                        save_selector_override(
+                            learned_site_key,
+                            manual["url"],
+                            edited_selectors,
+                            {
+                                "nome": candidate.get("name") or candidate["domain"],
+                                "base_url": candidate["official_url"],
+                                "cidade_padrao": candidate.get("city") or "",
+                                "paginacao": {"tipo": "nenhuma"},
+                            },
+                            pagination=edited_pagination,
+                            filters=edited_filters,
+                        )
                     result = {
                         **validation,
                         "url": manual["url"],
-                        "selectors": manual["selectors"],
+                        "selectors": edited_selectors,
                         "confidence": validation.get("qualidade_extracao", 0),
                         "platform": candidate.get("platform") or "manual",
                         "manual": True,
@@ -548,7 +755,7 @@ with tab_teach:
                     repository.save_inspection(candidate_id, result, "revisao")
                     engine.approve(
                         candidate_id,
-                        manual["selectors"],
+                        edited_selectors,
                         "Seleção visual manual.",
                         True,
                     )
@@ -612,6 +819,9 @@ with tab_publish:
 
     st.markdown("### 1. Publicar o banco de imóveis")
     snapshot = proposal_preview() if PROPOSAL_DB_PATH.is_file() else {}
+    stale_override = proposal_override_is_stale()
+    if stale_override:
+        st.warning("A configuração aprendida mudou depois da prévia. Gere e revise uma nova prévia antes de publicar.")
     if not snapshot:
         st.info(
             "Primeiro gere e revise uma prévia em ‘Raspar e visualizar’."
@@ -644,6 +854,7 @@ with tab_publish:
             and snapshot_confirmed
             and snapshot_confirmation == CONFIRMATION_PHRASE
             and diagnosis["available"]
+            and not stale_override
         ),
     ):
         try:

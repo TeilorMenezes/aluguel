@@ -216,6 +216,15 @@ def listar_sites_com_imoveis():
     return {linha["site_key"] for linha in linhas}
 
 
+def contar_imoveis_site(site_key: str) -> int:
+    """Quantidade atual usada como baseline de saúde da fonte."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS total FROM imoveis WHERE site_key = ?", (site_key,)
+        ).fetchone()
+    return int(row["total"] or 0)
+
+
 def _filtros_imoveis(
     preco_min=None,
     preco_max=None,
@@ -240,6 +249,8 @@ def _filtros_imoveis(
             query += f" AND (preco IS NULL OR ({expressao_preco}))"
         else:
             query += f" AND {expressao_preco}"
+    elif not incluir_sem_preco:
+        query += " AND preco IS NOT NULL"
     if bairros:
         placeholders = ",".join("?" * len(bairros))
         query += f" AND bairro IN ({placeholders})"
@@ -306,9 +317,9 @@ def listar_imoveis(
     query = f"SELECT *{filtros}"
 
     ordens = {
-        "recentes": "coletado_em DESC",
-        "preco_asc": "preco IS NULL, preco ASC",
-        "preco_desc": "preco IS NULL, preco DESC",
+        "recentes": "coletado_em DESC, id DESC",
+        "preco_asc": "preco IS NULL, preco ASC, id DESC",
+        "preco_desc": "preco IS NULL, preco DESC, id DESC",
     }
     query += f" ORDER BY {ordens.get(ordenar_por, ordens['recentes'])}"
     if limite is not None:

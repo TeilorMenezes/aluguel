@@ -6,9 +6,12 @@ from unittest.mock import MagicMock, patch
 
 import db
 import scraper
+from url_safety import validar_url_publica, verificar_robots
 from agente_expansao import resources
 from agente_expansao import collection
+from agente_expansao import selector_config
 from agente_expansao.visual_picker import _navigation_config
+from normalizacao import cidade_explicita_em_texto, normalizar_localizacao
 
 
 def _item(numero):
@@ -45,7 +48,285 @@ class _BotaoMais:
         self.page.lote += 1
 
 
+class _ImageElement:
+    def __init__(self, attrs=None, child=None):
+        self.attrs = attrs or {}
+        self.child = child
+
+    def get_attribute(self, name):
+        return self.attrs.get(name)
+
+    def query_selector(self, _selector):
+        return self.child
+
+
 class RoboLocalTest(unittest.TestCase):
+    def test_thumbnail_pode_vir_de_container_srcset_ou_background(self):
+        lazy = _ImageElement({"data-src": "/foto.webp"})
+        self.assertEqual(
+            scraper._url_imagem_elemento(_ImageElement(child=lazy)), "/foto.webp"
+        )
+        srcset = _ImageElement({"srcset": "/small.webp 400w, /large.webp 900w"})
+        self.assertEqual(scraper._url_imagem_elemento(srcset), "/large.webp")
+        background = _ImageElement({"style": "background-image: url('/bg.webp')"})
+        self.assertEqual(scraper._url_imagem_elemento(background), "/bg.webp")
+        style_preferido = _ImageElement({
+            "style": "background: url('https://exemplo.test/bg.webp') 50% 50% no-repeat"
+        })
+        self.assertEqual(
+            scraper._url_imagem_elemento(style_preferido, "style"),
+            "https://exemplo.test/bg.webp",
+        )
+        self.assertEqual(
+            scraper._normalizar_url_imagem(style_preferido.get_attribute("style")),
+            "https://exemplo.test/bg.webp",
+        )
+        self.assertEqual(
+            scraper._normalizar_url_imagem("url(https://exemplo.test/data-bg.jpg)"),
+            "https://exemplo.test/data-bg.jpg",
+        )
+        self.assertIsNone(scraper._normalizar_url_imagem("background: cover"))
+        self.assertEqual(
+            scraper._primeira_url_srcset("/small.webp 320w, /large.webp 1280w"),
+            "/large.webp",
+        )
+
+    def test_normalizacao_rejeita_navegacao_e_prioriza_cidade_explicita(self):
+        self.assertEqual(normalizar_localizacao("Previous / Next", "Ipatinga"), (None, "Ipatinga"))
+        self.assertEqual(
+            cidade_explicita_em_texto("Loja, Lourdes - Governador Valadares/MG"),
+            "Governador Valadares",
+        )
+
+    def test_preco_prioriza_locacao_e_ignora_venda_condominio(self):
+        self.assertEqual(
+            scraper._parse_preco("Venda R$ 750.000 | Aluguel R$ 2.500 | Condomínio R$ 700"),
+            2500.0,
+        )
+        self.assertEqual(
+            scraper._parse_preco("Condomínio R$ 700 | aluguel R$ 2.500"),
+            2500.0,
+        )
+        self.assertIsNone(scraper._parse_preco("Venda R$ 750.000"))
+        self.assertIsNone(scraper._parse_preco("3 quartos, 80 m², código 1234"))
+
+    def test_cidade_da_url_e_gate_de_saude_do_lote(self):
+        self.assertEqual(
+            scraper._cidade_da_url("https://exemplo.test/alugar/icara"), "Icara"
+        )
+        lote_saudavel = [
+            {
+                "url": f"https://exemplo.test/imovel/{numero}",
+                "titulo": f"Apartamento {numero}", "preco": 1200,
+                "cidade": "Icara", "thumbnail_url": "https://exemplo.test/foto.jpg",
+            }
+            for numero in range(3)
+        ]
+        self.assertTrue(scraper._saude_lote(lote_saudavel, baseline=3)["aceito"])
+        lote_quebrado = [{**item, "titulo": "10 FOTOS"} for item in lote_saudavel]
+        self.assertFalse(scraper._saude_lote(lote_quebrado, baseline=3)["aceito"])
+        vazio = scraper._saude_lote([], baseline=3)
+        self.assertEqual(vazio["urls_unicas"], 0)
+        self.assertEqual(vazio["taxas"], {})
+
+    def test_template_de_paginacao_por_caminho_tem_incremento(self):
+        strategy = scraper._template_url_numerica([
+            "https://exemplo.test/imoveis/page/2/"
+        ])
+        self.assertEqual(strategy["incremento"], 1)
+
+    def test_url_safety_bloqueia_rede_privada(self):
+        with patch("url_safety.socket.getaddrinfo", return_value=[
+            (2, 1, 6, "", ("127.0.0.1", 443)),
+        ]):
+            with self.assertRaises(ValueError):
+                validar_url_publica("https://exemplo.test/aluguel")
+
+    def test_robots_bloqueia_detector_quando_desautoriza(self):
+        response = SimpleNamespace(
+            status_code=200, url="https://exemplo.test/robots.txt",
+            text="User-agent: *\nDisallow: /aluguel\n",
+        )
+        public_dns = [(2, 1, 6, "", ("8.8.8.8", 443))]
+        with (
+            patch("url_safety.socket.getaddrinfo", return_value=public_dns),
+            patch("url_safety.requests.get", return_value=response),
+        ):
+            with self.assertRaises(ValueError):
+                verificar_robots("https://exemplo.test/aluguel")
+
+    def test_robots_nao_segue_redirecionamento_para_rede_privada(self):
+        response = SimpleNamespace(
+            status_code=302,
+            url="https://exemplo.test/robots.txt",
+            headers={"Location": "http://127.0.0.1/robots.txt"},
+            text="",
+        )
+        public_dns = [(2, 1, 6, "", ("8.8.8.8", 443))]
+        with (
+            patch("url_safety.socket.getaddrinfo", return_value=public_dns),
+            patch("url_safety.requests.get", return_value=response) as request,
+        ):
+            with self.assertRaises(ValueError):
+                verificar_robots("https://exemplo.test/aluguel")
+        request.assert_called_once()
+
+        with patch("url_safety.socket.getaddrinfo", return_value=[
+            (2, 1, 6, "", ("203.0.113.10", 443)),
+        ]):
+            # TEST-NET também é reservado e deve permanecer bloqueado.
+            with self.assertRaises(ValueError):
+                validar_url_publica("https://exemplo.test/aluguel")
+    def test_editor_lists_overrides_and_preserves_unknown_fields(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "override.yaml"
+            history = Path(folder) / "history.jsonl"
+            path.write_text(
+                "sites:\n  exemplo:\n    nome: Exemplo\n    base_url: https://exemplo.test\n"
+                "    listagem_url: https://exemplo.test/aluguel\n    seletores:\n"
+                "      card: .card\n      link: a\n      titulo: h2\n      preco: .preco\n"
+                "      thumbnail: img\n      desconhecido: .extra\n    paginacao:\n      tipo: botao\n      limite_desconhecido: 7\n",
+                encoding="utf-8",
+            )
+            listed = selector_config.list_persisted_overrides(path)
+            draft = {"listagem_url": "https://exemplo.test/aluguel-2", "seletores": {"card": ".novo"}}
+            saved = selector_config.save_edited_override(
+                "exemplo", draft, tested_signature=selector_config.config_signature({**listed["exemplo"], **draft, "seletores": {**listed["exemplo"]["seletores"], **draft["seletores"]}}),
+                test_result={"publicavel": True}, path=path, history_path=history,
+            )
+            self.assertEqual(saved["seletores"]["desconhecido"], ".extra")
+            self.assertEqual(saved["paginacao"]["limite_desconhecido"], 7)
+            self.assertEqual(saved["espera_seletor"], ".novo")
+
+    def test_editor_rejects_unsafe_url_css_and_navigation(self):
+        base = {
+            "base_url": "https://exemplo.test", "listagem_url": "https://outro.test/aluguel",
+            "seletores": {"card": ".card", "link": "a", "titulo": "h2", "preco": ".preco", "thumbnail": "img"},
+        }
+        with self.assertRaises(ValueError):
+            selector_config.validate_override(base)
+        base["listagem_url"] = "https://exemplo.test/aluguel"
+        base["seletores"]["card"] = "//div"
+        with self.assertRaises(ValueError):
+            selector_config.validate_override(base)
+        base["seletores"]["card"] = ".card"
+        base["seletores"]["thumbnail"] = "img[src='foto.jpg'"
+        with self.assertRaises(ValueError):
+            selector_config.validate_override(base)
+        base["seletores"]["thumbnail"] = "img[src='foto.jpg']"
+        base["paginacao"] = {"tipo": "botao", "max_cliques": "muitos"}
+        with self.assertRaises(ValueError):
+            selector_config.validate_override(base)
+        base["paginacao"] = {"tipo": "botao", "max_cliques": 10}
+        base["filtros"] = {"tipo": "select", "seletor": "select.bairro"}
+        selector_config.validate_override(base)
+
+    def test_editor_accepts_mesma_origem_com_ou_sem_www(self):
+        selector_config.validate_override({
+            "base_url": "https://www.exemplo.test",
+            "listagem_url": "https://exemplo.test/aluguel",
+            "seletores": {
+                "card": ".card", "link": "a", "titulo": "h2",
+                "preco": ".preco", "thumbnail": "img",
+            },
+        })
+
+    def test_editor_requires_current_test_or_forced_justification_and_writes_history(self):
+        with TemporaryDirectory() as folder:
+            path, history = Path(folder) / "override.yaml", Path(folder) / "history.jsonl"
+            data = {"sites": {"exemplo": {"base_url": "https://exemplo.test", "listagem_url": "https://exemplo.test/a", "seletores": {"card": ".card", "link": "a", "titulo": "h2", "preco": ".preco", "thumbnail": "img"}}}}
+            path.write_text(__import__("yaml").safe_dump(data), encoding="utf-8")
+            draft = {"seletores": {"card": ".novo"}}
+            with self.assertRaises(ValueError):
+                selector_config.save_edited_override("exemplo", draft, tested_signature=None, test_result=None, path=path, history_path=history)
+            with self.assertRaises(ValueError):
+                selector_config.save_edited_override("exemplo", draft, tested_signature="antigo", test_result={"publicavel": True}, path=path, history_path=history)
+            with self.assertRaises(ValueError):
+                selector_config.save_edited_override("exemplo", draft, tested_signature=None, test_result={"publicavel": False}, force=True, path=path, history_path=history)
+            proposed = selector_config._merge(data["sites"]["exemplo"], draft)
+            current_signature = selector_config.config_signature(proposed)
+            with self.assertRaises(ValueError):
+                selector_config.save_edited_override(
+                    "exemplo", draft, tested_signature=current_signature,
+                    test_result={"publicavel": True}, force=True,
+                    justification="Não deve forçar", path=path,
+                    history_path=history,
+                )
+            with self.assertRaises(ValueError):
+                selector_config.save_edited_override(
+                    "exemplo", draft, tested_signature=None,
+                    test_result={"publicavel": False}, force=True,
+                    justification="Conferido manualmente", path=path,
+                    history_path=history,
+                )
+            saved = selector_config.save_edited_override(
+                "exemplo", draft, tested_signature=current_signature,
+                test_result={"publicavel": False}, force=True,
+                justification="Conferido manualmente", path=path,
+                history_path=history,
+            )
+            self.assertEqual(saved["seletores"]["card"], ".novo")
+            self.assertEqual(selector_config.selector_history("exemplo", history)[0]["action"], "save_forced")
+            restored = selector_config.restore_previous_override("exemplo", confirmation=True, path=path, history_path=history)
+            self.assertEqual(restored["seletores"]["card"], ".card")
+
+    def test_editor_failure_keeps_previous_file(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "override.yaml"
+            original = "sites:\n  exemplo:\n    base_url: https://exemplo.test\n    listagem_url: https://exemplo.test/a\n    seletores:\n      card: .card\n      link: a\n      titulo: h2\n      preco: .preco\n      thumbnail: img\n"
+            path.write_text(original, encoding="utf-8")
+            with self.assertRaises(ValueError):
+                selector_config.save_edited_override("exemplo", {"seletores": {"card": "//invalido"}}, tested_signature=None, test_result=None, path=path, history_path=Path(folder) / "history.jsonl")
+            self.assertEqual(path.read_text(encoding="utf-8"), original)
+
+    def test_editor_uses_atomic_write(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "override.yaml"
+            history = Path(folder) / "history.jsonl"
+            original = "sites:\n  exemplo:\n    base_url: https://exemplo.test\n    listagem_url: https://exemplo.test/a\n    seletores:\n      card: .card\n      link: a\n      titulo: h2\n      preco: .preco\n      thumbnail: img\n"
+            path.write_text(original, encoding="utf-8")
+            current = selector_config.list_persisted_overrides(path)["exemplo"]
+            draft = {"seletores": {"card": ".novo"}}
+            signature = selector_config.config_signature({**current, "seletores": {**current["seletores"], **draft["seletores"]}})
+            with patch.object(selector_config.os, "replace", side_effect=OSError("falha")):
+                with self.assertRaises(OSError):
+                    selector_config.save_edited_override("exemplo", draft, tested_signature=signature, test_result={"publicavel": True}, path=path, history_path=history)
+            self.assertEqual(path.read_text(encoding="utf-8"), original)
+            self.assertEqual(list(Path(folder).glob(".override.yaml.*.tmp")), [])
+
+    def test_editor_rolls_back_when_history_cannot_be_recorded(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "override.yaml"
+            history = Path(folder) / "history.jsonl"
+            original = {
+                "sites": {
+                    "exemplo": {
+                        "base_url": "https://exemplo.test",
+                        "listagem_url": "https://exemplo.test/a",
+                        "seletores": {
+                            "card": ".card", "link": "a", "titulo": "h2",
+                            "preco": ".preco", "thumbnail": "img",
+                        },
+                    }
+                }
+            }
+            path.write_text(
+                __import__("yaml").safe_dump(original, sort_keys=False),
+                encoding="utf-8",
+            )
+            draft = {"seletores": {"card": ".novo"}}
+            proposed = selector_config._merge(original["sites"]["exemplo"], draft)
+            signature = selector_config.config_signature(proposed)
+            with patch.object(selector_config, "_record", side_effect=OSError("sem espaço")):
+                with self.assertRaises(OSError):
+                    selector_config.save_edited_override(
+                        "exemplo", draft, tested_signature=signature,
+                        test_result={"publicavel": True}, path=path,
+                        history_path=history,
+                    )
+            restored = __import__("yaml").safe_load(path.read_text(encoding="utf-8"))
+            self.assertEqual(restored, original)
+
     def test_infere_paginacao_somente_de_urls_observadas(self):
         strategy = scraper._template_url_numerica([
             "https://exemplo.test/busca?finalidade=alugar&page=2",
@@ -84,7 +365,7 @@ class RoboLocalTest(unittest.TestCase):
 
     def test_json_generico_exige_url_de_imovel(self):
         data = {"resultados": [
-            {"url": "/imovel/1", "titulo": "Apartamento Centro", "valor": "R$ 1.500,00"},
+            {"url": "/imovel/1", "titulo": "Apartamento Centro", "valor": "R$ 1,200"},
             {"titulo": "Registro sem link", "valor": 900},
         ]}
         items = scraper._extrair_json_generico(
@@ -92,7 +373,23 @@ class RoboLocalTest(unittest.TestCase):
         )
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["url"], "https://exemplo.test/imovel/1")
-        self.assertEqual(items[0]["preco"], 1500.0)
+        self.assertEqual(items[0]["preco"], 1200.0)
+
+    def test_preco_entende_milhar_com_virgula_e_formatos_internacionais(self):
+        casos = {
+            "R$ 1,200": 1200.0,
+            "1,200": 1200.0,
+            "R$ 12,345": 12345.0,
+            "R$ 1,200.00": 1200.0,
+            "R$ 1.200,00": 1200.0,
+            "R$ 1 200,00": 1200.0,
+            "R$ 1200,50": 1200.5,
+            "R$ 1,20": 1.2,
+        }
+        for texto, esperado in casos.items():
+            with self.subTest(texto=texto):
+                self.assertEqual(scraper._parse_preco(texto), esperado)
+        self.assertIsNone(scraper._parse_preco("Sob consulta"))
 
     def test_ensino_visual_gera_configuracao_de_filtro(self):
         pagination, filters = _navigation_config(
@@ -153,6 +450,29 @@ class RoboLocalTest(unittest.TestCase):
             saved = __import__("yaml").safe_load(override.read_text(encoding="utf-8"))
         self.assertEqual(saved["sites"]["exemplo"]["paginacao"]["tipo"], "rolagem")
         self.assertEqual(saved["sites"]["exemplo"]["filtros"]["tipo"], "links")
+
+    def test_aprendizado_visual_permite_limpar_paginacao_e_filtros(self):
+        with TemporaryDirectory() as folder:
+            override = Path(folder) / "override.yaml"
+            override.write_text(
+                "sites:\n  exemplo:\n    paginacao:\n      tipo: url\n"
+                "    filtros:\n      tipo: links\n",
+                encoding="utf-8",
+            )
+            with (
+                patch.object(collection, "LOCAL_OVERRIDE_PATH", override),
+                patch.object(collection, "configured_sites", return_value={"exemplo": {}}),
+            ):
+                collection.save_selector_override(
+                    "exemplo",
+                    "https://exemplo.test/aluguel",
+                    {"card": ".card", "link": "a", "titulo": "h2", "preco": ".valor", "thumbnail": "img"},
+                    pagination={},
+                    filters={},
+                )
+            saved = __import__("yaml").safe_load(override.read_text(encoding="utf-8"))
+        self.assertEqual(saved["sites"]["exemplo"]["paginacao"], {})
+        self.assertEqual(saved["sites"]["exemplo"]["filtros"], {})
 
     def test_botao_acumula_lotes_mesmo_se_dom_for_substituido(self):
         page = _PaginaComMais()
