@@ -112,8 +112,9 @@ def parametros_resultados_url(
     """Serializa o estado canônico dos filtros para a URL pública."""
     parametros: dict[str, str | list[str]] = {"tela": "resultados"}
     cidades = filtros.get("cidades")
-    if not cidades and filtros.get("cidade") != todas_cidades:
-        cidades = [str(filtros["cidade"])]
+    cidade_legada = filtros.get("cidade", todas_cidades)
+    if not cidades and cidade_legada != todas_cidades:
+        cidades = [str(cidade_legada)]
     if cidades:
         parametros["cidade"] = list(dict.fromkeys(str(cidade) for cidade in cidades))
     if filtros["tipo"] != todos_tipos:
