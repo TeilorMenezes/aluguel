@@ -243,7 +243,7 @@ sites:
     seletores:
       card: .property
       link: a
-      titulo: h1.title
+      titulo: h2.title
       preco: .property-price
       thumbnail: .property-img img
       thumbnail_attr: src
