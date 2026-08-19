@@ -305,7 +305,9 @@ sites:
     logo: ''
     base_url: https://www.attria.com.br
     listagem_url: https://www.attria.com.br/aluguel/mg
-    cidade_padrao: Coluna
+    cidade_padrao: ''
+    coleta_ativa: false
+    motivo_quarentena: "Listagem estadual sem bairro/cidade confiáveis; requer estratégia de detalhe validada."
     finalidade: aluguel
     espera_seletor: article.listing-item
     paginacao:
@@ -391,7 +393,9 @@ sites:
     logo: ''
     base_url: https://www.dudaimoveis.com.br
     listagem_url: https://www.dudaimoveis.com.br/alugar/icara
-    cidade_padrao: Rio Acima
+    cidade_padrao: Içara
+    coleta_ativa: false
+    motivo_quarentena: "Endereço não é exposto com confiança suficiente; requer estratégia de detalhe validada."
     finalidade: aluguel
     espera_seletor: li.bg-white.exclusive.flex.flex-col.imovel.justify-start.overflow-hidden.rounded-2xl
     paginacao:

@@ -26,6 +26,10 @@ _MARCADORES_ENDERECO = re.compile(r"\b(rua|avenida|av\.?|rodovia|estrada|travess
 _MARCADORES_DESCRICAO = re.compile(
     r"\b(para\s+alugu[ea]r|quartos?|su[ií]te|vagas?|m[²2]|comercial)\b", re.I
 )
+_MARCADORES_NAO_LOCALIZACAO = re.compile(
+    r"R\$|\b(aluguel|alugar|loca[cç][aã]o|venda|vender|pre[cç]o|valor|c[oó]d(?:igo)?)\b",
+    re.I,
+)
 _MARCADORES_NAVEGACAO = re.compile(
     r"\b(previous|next|anterior|pr[oó]xim[oa]|p[aá]gina|page|‹|›|«|»)\b|\{\{",
     re.I,
@@ -39,6 +43,7 @@ def eh_bairro_valido(valor):
         texto
         and len(texto) <= 55
         and not _MARCADORES_DESCRICAO.search(texto)
+        and not _MARCADORES_NAO_LOCALIZACAO.search(texto)
         and not _MARCADORES_NAVEGACAO.search(texto)
     )
 

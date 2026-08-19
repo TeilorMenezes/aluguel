@@ -338,10 +338,21 @@ def _enderecos_estruturados(valor):
     if not isinstance(valor, dict):
         return
 
+    tipos_brutos = valor.get("@type")
+    tipos = {
+        str(tipo).casefold()
+        for tipo in (tipos_brutos if isinstance(tipos_brutos, list) else [tipos_brutos])
+        if tipo
+    }
+    institucional = bool(tipos & {"organization", "localbusiness", "realestateagent"})
+    imobiliario = bool(tipos & {
+        "product", "offer", "apartment", "house", "residence", "accommodation",
+        "realestatelisting", "place",
+    })
     endereco = valor.get("address")
-    if isinstance(endereco, dict):
+    if isinstance(endereco, dict) and not institucional and (imobiliario or not tipos):
         yield endereco
-    if any(chave in valor for chave in (
+    if not institucional and any(chave in valor for chave in (
         "addressNeighborhood", "neighborhood", "district", "addressLocality", "addressCity",
     )):
         yield valor
@@ -483,6 +494,15 @@ def _nova_pagina_detalhe(page):
         raise
 
 
+def _mesma_fonte(url, base_url):
+    """Impede que um card ou detalhe leve o robô a outro domínio."""
+    origem = urlparse(url or "").hostname or ""
+    base = urlparse(base_url or "").hostname or ""
+    if not base:
+        return True
+    return origem.removeprefix("www.").casefold() == base.removeprefix("www.").casefold()
+
+
 def _selecionar(card, seletor):
     """Consulta um seletor opcional sem deixar um valor vazio invalidar o card."""
     if not seletor:
@@ -577,6 +597,7 @@ def _saude_lote(itens, baseline=0):
         "url": len(urls) / total,
         "titulo": sum(_titulo_util(item.get("titulo")) for item in itens) / total,
         "preco": sum(item.get("preco") is not None for item in itens) / total,
+        "bairro": sum(bool(item.get("bairro")) for item in itens) / total,
         "cidade": sum(bool(item.get("cidade")) for item in itens) / total,
         "foto": sum(bool(item.get("thumbnail_url")) for item in itens) / total,
     }
@@ -587,6 +608,8 @@ def _saude_lote(itens, baseline=0):
         motivos.append("títulos úteis abaixo de 60%")
     if taxas["preco"] < 0.50:
         motivos.append("preços de aluguel confiáveis abaixo de 50%")
+    if taxas["bairro"] < 0.70:
+        motivos.append("bairros confiáveis abaixo de 70%")
     if taxas["cidade"] < 0.60:
         motivos.append("cidades preenchidas abaixo de 60%")
     if baseline >= 10 and len(urls) < baseline * 0.50:
@@ -661,12 +684,16 @@ def _extrair_com_autocorrecao(page, cfg_site):
     return itens_originais
 
 
-def _enriquecer_itens_incompletos(page, itens, cfg_site, limite=15):
+def _enriquecer_itens_incompletos(page, itens, cfg_site, limite=None):
     """Recupera dados na página individual somente quando o card é incompleto.
 
     Bairro e cidade entram no mesmo fluxo porque diversos portais só mostram o
     endereço completo no anúncio, não no card de listagem.
     """
+    configuracao = cfg_site.get("enriquecimento_detalhe") or {}
+    max_detalhes = int(configuracao.get("max_itens", 12) if limite is None else limite)
+    orcamento_segundos = float(configuracao.get("orcamento_segundos", 45))
+    inicio = time.monotonic()
     pendentes = [
         item for item in itens
         if (
@@ -677,13 +704,21 @@ def _enriquecer_itens_incompletos(page, itens, cfg_site, limite=15):
             or not item.get("bairro")
             or not item.get("cidade")
         )
-    ][:limite]
+        and _mesma_fonte(item.get("url"), cfg_site.get("base_url"))
+    ][:max(0, max_detalhes)]
     for item in pendentes:
+        restante = orcamento_segundos - (time.monotonic() - inicio)
+        if restante <= 0:
+            break
         detalhe = None
         try:
             detalhe = _nova_pagina_detalhe(page)
-            detalhe.goto(item["url"], timeout=45000, wait_until="domcontentloaded")
-            detalhe.wait_for_timeout(1200)
+            detalhe.goto(
+                item["url"],
+                timeout=max(1000, min(15000, int(restante * 1000))),
+                wait_until="domcontentloaded",
+            )
+            detalhe.wait_for_timeout(min(800, max(0, int(restante * 1000))))
 
             titulo = _texto(_selecionar(detalhe, "h1"))
             if not titulo:
@@ -783,7 +818,7 @@ def _extrair_cards(page, cfg_site: dict):
             link_el = _link_do_imovel(card, seletores.get("link"))
             href = link_el.get_attribute("href") if link_el else None
             url_imovel = urljoin(cfg_site["base_url"], href) if href else None
-            if not url_imovel:
+            if not url_imovel or not _mesma_fonte(url_imovel, cfg_site.get("base_url")):
                 continue
 
             titulo_detectado = _texto(_selecionar(card, seletores.get("titulo")))
@@ -1685,10 +1720,19 @@ def rodar_varredura(
     cfg = carregar_config()
     total_coletado = 0
     erros = []
+    solicitados = set(sites_filtrados or [])
+    for site_key, cfg_site in cfg["sites"].items():
+        if not cfg_site.get("coleta_ativa", True) and (not solicitados or site_key in solicitados):
+            db.registrar_status_site(
+                site_key,
+                "quarentena",
+                erro=cfg_site.get("motivo_quarentena", "Fonte em quarentena para revisão."),
+            )
     selecionados = [
         (site_key, {**cfg_site, "_site_key": site_key})
         for site_key, cfg_site in cfg["sites"].items()
-        if not sites_filtrados or site_key in sites_filtrados
+        if (not solicitados or site_key in solicitados)
+        and cfg_site.get("coleta_ativa", True)
     ]
     trabalhadores = max(1, min(int(max_workers or 1), 16, len(selecionados) or 1))
 

@@ -123,6 +123,10 @@ class RoboLocalTest(unittest.TestCase):
     def test_normalizacao_rejeita_navegacao_e_prioriza_cidade_explicita(self):
         self.assertEqual(normalizar_localizacao("Previous / Next", "Ipatinga"), (None, "Ipatinga"))
         self.assertEqual(
+            normalizar_localizacao("Aluguel: R$ 1.200", "Ipatinga"),
+            (None, "Ipatinga"),
+        )
+        self.assertEqual(
             cidade_explicita_em_texto("Loja, Lourdes - Governador Valadares/MG"),
             "Governador Valadares",
         )
@@ -146,6 +150,23 @@ class RoboLocalTest(unittest.TestCase):
         self.assertEqual(
             scraper._localizacao_da_pagina(page, {"cidade_padrao": "Ipatinga"}),
             ("Cidade Nobre", "Ipatinga"),
+        )
+
+    def test_localizacao_da_pagina_ignora_json_ld_da_imobiliaria(self):
+        json_ld = '''[
+            {"@type": "RealEstateAgent", "address": {
+                "addressNeighborhood": "Centro", "addressLocality": "Ipatinga"
+            }},
+            {"@type": "Product", "address": {
+                "addressNeighborhood": "Veneza", "addressLocality": "Timóteo"
+            }}
+        ]'''
+        page = _DetailPage({
+            'script[type="application/ld+json"]': [_TextElement(json_ld)],
+        })
+        self.assertEqual(
+            scraper._localizacao_da_pagina(page, {"cidade_padrao": "Ipatinga"}),
+            ("Veneza", "Timóteo"),
         )
 
     def test_localizacao_da_pagina_aceita_endereco_de_fonte_sem_json_ld(self):
@@ -196,6 +217,54 @@ class RoboLocalTest(unittest.TestCase):
         self.assertEqual(item["bairro"], "Veneza Ii")
         self.assertEqual(item["cidade"], "Ipatinga")
 
+    def test_enriquecimento_respeita_limite_e_mesma_fonte(self):
+        detalhe = _DetailPage({
+            "h1": [_TextElement("Apartamento Bairro Centro")],
+        })
+        aberturas = []
+
+        def nova_pagina():
+            aberturas.append(True)
+            return detalhe
+
+        listagem = SimpleNamespace(
+            context=SimpleNamespace(new_page=nova_pagina),
+        )
+        itens = [
+            {
+                "url": f"https://exemplo.test/imovel/{numero}",
+                "titulo": "Apartamento Bairro Centro",
+                "tipo": "Apartamento",
+                "preco": 1200,
+                "bairro": None,
+                "cidade": "Ipatinga",
+                "thumbnail_url": None,
+            }
+            for numero in range(3)
+        ] + [{
+            "url": "https://externo.test/imovel/4",
+            "titulo": "Apartamento Bairro Centro",
+            "tipo": "Apartamento",
+            "preco": 1200,
+            "bairro": None,
+            "cidade": "Ipatinga",
+            "thumbnail_url": None,
+        }]
+        scraper._enriquecer_itens_incompletos(
+            listagem,
+            itens,
+            {
+                "base_url": "https://www.exemplo.test",
+                "cidade_padrao": "Ipatinga",
+                "enriquecimento_detalhe": {"max_itens": 2, "orcamento_segundos": 45},
+            },
+        )
+        self.assertEqual(len(aberturas), 2)
+        self.assertEqual(itens[0]["bairro"], "Centro")
+        self.assertEqual(itens[1]["bairro"], "Centro")
+        self.assertIsNone(itens[2]["bairro"])
+        self.assertIsNone(itens[3]["bairro"])
+
     def test_preco_prioriza_locacao_e_ignora_venda_condominio(self):
         self.assertEqual(
             scraper._parse_preco("Venda R$ 750.000 | Aluguel R$ 2.500 | Condomínio R$ 700"),
@@ -219,13 +288,16 @@ class RoboLocalTest(unittest.TestCase):
             {
                 "url": f"https://exemplo.test/imovel/{numero}",
                 "titulo": f"Apartamento {numero}", "preco": 1200,
-                "cidade": "Icara", "thumbnail_url": "https://exemplo.test/foto.jpg",
+                "bairro": "Centro", "cidade": "Icara",
+                "thumbnail_url": "https://exemplo.test/foto.jpg",
             }
             for numero in range(3)
         ]
         self.assertTrue(scraper._saude_lote(lote_saudavel, baseline=3)["aceito"])
         lote_quebrado = [{**item, "titulo": "10 FOTOS"} for item in lote_saudavel]
         self.assertFalse(scraper._saude_lote(lote_quebrado, baseline=3)["aceito"])
+        lote_sem_bairro = [{**item, "bairro": None} for item in lote_saudavel]
+        self.assertFalse(scraper._saude_lote(lote_sem_bairro, baseline=3)["aceito"])
         vazio = scraper._saude_lote([], baseline=3)
         self.assertEqual(vazio["urls_unicas"], 0)
         self.assertEqual(vazio["taxas"], {})
@@ -675,6 +747,24 @@ class RoboLocalTest(unittest.TestCase):
         self.assertEqual(tentativas, 3)
         self.assertIsNone(erro)
         self.assertEqual(raspar.call_count, 3)
+
+    def test_fonte_em_quarentena_nao_inicia_coleta(self):
+        config = {"sites": {
+            "bloqueada": {
+                "coleta_ativa": False,
+                "motivo_quarentena": "localização inconsistente",
+            },
+        }}
+        with (
+            patch.object(scraper, "carregar_config", return_value=config),
+            patch.object(scraper.db, "init_db"),
+            patch.object(scraper.db, "registrar_status_site") as status,
+            patch.object(scraper.db, "registrar_execucao"),
+        ):
+            total, erro = scraper.rodar_varredura(["bloqueada"])
+        self.assertEqual(total, 0)
+        self.assertIsNone(erro)
+        self.assertEqual(status.call_args.args[:2], ("bloqueada", "quarentena"))
 
 
 if __name__ == "__main__":
