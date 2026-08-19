@@ -288,3 +288,19 @@ sites:
         label: TRES CORACOES
       max_opcoes: 60
     estrategia_atualizada_em: '2026-08-12T16:17:39-03:00'
+  meimobiliaria:
+    nome: meimobiliaria.com.br
+    base_url: https://www.meimobiliaria.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina=1
+    cidade_padrao: Ipatinga
+    paginacao: {}
+    listagem_url: https://www.meimobiliaria.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina=1
+    espera_seletor: div.property
+    seletores:
+      card: div.property
+      link: a
+      titulo: h2.title
+      preco: div.property-price
+      thumbnail: img.hp-1
+      thumbnail_attr: src
+    aprendido_em: '2026-08-19T17:41:28-03:00'
+    filtros: {}
