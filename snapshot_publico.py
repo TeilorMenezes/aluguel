@@ -10,6 +10,8 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
+from qualidade_locacao import revisar_anuncio_locacao
+
 
 ROOT = Path(__file__).resolve().parent
 PUBLIC_DIR = ROOT / "public_data"
@@ -174,6 +176,20 @@ def _read_rows(path: Path, site_keys: set[str] | None = None) -> list[tuple]:
         return [tuple(row) for row in conn.execute(query, params).fetchall()]
 
 
+def _revisar_rows_locacao(rows: list[tuple]) -> list[tuple]:
+    """Remove vendas e neutraliza preços não confirmados no snapshot público."""
+    revisados = []
+    for row in rows:
+        valores = list(row)
+        # PUBLIC_COLUMNS: url=3, titulo=4, preco=6.
+        decisao = revisar_anuncio_locacao(valores[4], valores[3], valores[6])
+        if not decisao["publicar"]:
+            continue
+        valores[6] = decisao["preco"]
+        revisados.append(tuple(valores))
+    return revisados
+
+
 def create_snapshot(
     source_db: str | Path,
     output_db: str | Path,
@@ -203,7 +219,7 @@ def create_snapshot(
         source_rows = _read_rows(source_db, selected)
     else:
         source_rows = _read_rows(source_db)
-    for row in source_rows:
+    for row in _revisar_rows_locacao(source_rows):
         rows_by_url[row[3]] = row
     if mode == "partial" and not source_rows:
         raise ValueError("A coleta local não possui imóveis das fontes selecionadas.")
