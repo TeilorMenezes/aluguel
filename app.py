@@ -2119,7 +2119,9 @@ st.markdown(
         background: linear-gradient(110deg, #07534b 0%, #f1c45b 100%) !important;
         box-shadow: 0 0 0 .24rem rgba(241,196,91,.18) !important;
     }
-    [data-testid="stSelectbox"] .react-aria-ComboBox > div:has(input[role="combobox"]) {
+    .st-key-mv_v2_search [data-testid="stMultiSelect"] .react-aria-ComboBox > div:has(input[role="combobox"]),
+    .st-key-mv_filter_shell [data-testid="stSelectbox"] .react-aria-ComboBox > div:has(input[role="combobox"]),
+    .st-key-mv_filter_shell [data-testid="stMultiSelect"] .react-aria-ComboBox > div:has(input[role="combobox"]) {
         box-sizing: border-box;
         background:
             linear-gradient(#f3f7f5, #f3f7f5) padding-box,
@@ -2128,10 +2130,56 @@ st.markdown(
         border-radius: .72rem !important;
         transition: box-shadow .2s ease, background .2s ease;
     }
-    [data-testid="stSelectbox"] .react-aria-ComboBox:focus-within > div:has(input[role="combobox"]) {
+    .st-key-mv_v2_search [data-testid="stMultiSelect"] .react-aria-ComboBox:focus-within > div:has(input[role="combobox"]),
+    .st-key-mv_filter_shell [data-testid="stSelectbox"] .react-aria-ComboBox:focus-within > div:has(input[role="combobox"]),
+    .st-key-mv_filter_shell [data-testid="stMultiSelect"] .react-aria-ComboBox:focus-within > div:has(input[role="combobox"]) {
         background:
             linear-gradient(white, white) padding-box,
             linear-gradient(110deg, #07534b 0%, #f1c45b 100%) border-box !important;
+        box-shadow: 0 0 0 .24rem rgba(241,196,91,.18) !important;
+    }
+    .st-key-mv_filter_shell [data-testid="stNumberInput"] [data-baseweb="input"] {
+        box-sizing: border-box;
+        min-height: 40px;
+        padding: 2px !important;
+        background: linear-gradient(110deg, #07534b 0%, #168072 48%, #f1c45b 100%) !important;
+        border: 0 !important;
+        border-radius: .72rem !important;
+        transition: box-shadow .2s ease, background .2s ease;
+    }
+    .st-key-mv_filter_shell [data-testid="stNumberInput"] [data-baseweb="input"] input {
+        min-height: 36px;
+        color: #173c37 !important;
+        background: #f3f7f5 !important;
+        border: 0 !important;
+        border-radius: .58rem !important;
+    }
+    .st-key-mv_filter_shell [data-testid="stNumberInput"]:focus-within [data-baseweb="input"] {
+        background: linear-gradient(110deg, #07534b 0%, #f1c45b 100%) !important;
+        box-shadow: 0 0 0 .24rem rgba(241,196,91,.18) !important;
+    }
+    .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] {
+        min-height: 40px;
+        padding: 2px;
+        background: linear-gradient(110deg, #07534b 0%, #168072 48%, #f1c45b 100%) !important;
+        border-radius: .72rem;
+        transition: box-shadow .2s ease, background .2s ease;
+    }
+    .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] > input,
+    .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] > div {
+        min-height: 36px;
+        color: #173c37 !important;
+        background: #f3f7f5 !important;
+        border: 0 !important;
+    }
+    .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] > input {
+        border-radius: calc(.72rem - 2px) 0 0 calc(.72rem - 2px) !important;
+    }
+    .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] > div {
+        border-radius: 0 calc(.72rem - 2px) calc(.72rem - 2px) 0 !important;
+    }
+    .st-key-mv_filter_shell [data-testid="stNumberInput"]:focus-within [data-testid="stNumberInputContainer"] {
+        background: linear-gradient(110deg, #07534b 0%, #f1c45b 100%) !important;
         box-shadow: 0 0 0 .24rem rgba(241,196,91,.18) !important;
     }
     [data-testid="stSlider"] {
