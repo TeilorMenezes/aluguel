@@ -79,6 +79,27 @@ class PublicSnapshotTest(unittest.TestCase):
             self.assertNotIn("execucoes", tables)
             self.assertEqual(json.loads(manifest.read_text(encoding="utf-8"))["schema_version"], 1)
 
+    def test_snapshot_remove_venda_e_neutraliza_preco_sem_periodo_mensal(self):
+        with tempfile.TemporaryDirectory() as temp:
+            temp = Path(temp)
+            source, output, manifest = temp / "source.db", temp / "public.db", temp / "manifest.json"
+            venda = list(row("venda", 1))
+            venda[3] = "https://venda.test/imovel/casa-a-venda"
+            venda[4] = "Casa à venda"
+            venda[6] = 750000
+            misto = list(row("misto", 1))
+            misto[3] = "https://misto.test/imovel/casa-a-venda-ou-aluguel"
+            misto[4] = "Casa à venda ou aluguel"
+            misto[6] = 2000000
+            make_source(source, [tuple(venda), tuple(misto), row("aluguel", 1)])
+            result = create_snapshot(source, output, manifest)
+            self.assertTrue(result["valid"])
+            with closing(sqlite3.connect(output)) as conn:
+                valores = conn.execute(
+                    "SELECT site_key, preco FROM imoveis ORDER BY site_key"
+                ).fetchall()
+            self.assertEqual(valores, [("aluguel", 1001.0), ("misto", None)])
+
     def test_partial_snapshot_replaces_selected_and_preserves_others(self):
         with tempfile.TemporaryDirectory() as temp:
             temp = Path(temp)

@@ -27,6 +27,7 @@ from detector import avaliar_extracao, detectar_seletores
 from geocode import geocodificar_bairro
 from tipos import normalizar_tipo
 from normalizacao import cidade_explicita_em_texto, normalizar_cidade, normalizar_localizacao
+from qualidade_locacao import revisar_anuncio_locacao
 
 CONFIG_PATH = Path(__file__).parent / "sites_config.yaml"
 DEFAULT_OVERRIDE_PATH = Path(__file__).parent / "public_data" / "selectors_override.yaml"
@@ -621,6 +622,12 @@ def _extrair_cards(page, cfg_site: dict):
             if _parse_preco(preco_txt) is None:
                 preco_txt = _texto_preco_alternativo(card) or preco_txt
 
+            revisao_locacao = revisar_anuncio_locacao(
+                titulo, url_imovel, _parse_preco(preco_txt), contexto_preco=preco_txt
+            )
+            if not revisao_locacao["publicar"]:
+                continue
+
             thumb_el = _selecionar(card, seletores.get("thumbnail")) or _selecionar(card, "img")
             thumb_attr = seletores.get("thumbnail_attr", "src")
             thumb_url = _url_imagem_elemento(thumb_el, thumb_attr)
@@ -646,7 +653,7 @@ def _extrair_cards(page, cfg_site: dict):
                 "url": url_imovel,
                 "titulo": titulo,
                 "tipo": tipo,
-                "preco": _parse_preco(preco_txt),
+                "preco": revisao_locacao["preco"],
                 "bairro": bairro,
                 "cidade": cidade,
                 "thumbnail_url": thumb_url,
