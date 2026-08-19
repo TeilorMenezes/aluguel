@@ -2100,7 +2100,8 @@ st.markdown(
     [data-testid="stSelectbox"] div[data-baseweb="select"],
     [data-testid="stMultiSelect"] div[data-baseweb="select"] {
         box-sizing: border-box;
-        min-height: 40px;
+        height: 48px !important;
+        min-height: 48px;
         padding: 2px !important;
         background: linear-gradient(110deg, #07534b 0%, #168072 48%, #f1c45b 100%) !important;
         border: 0 !important;
@@ -2108,7 +2109,8 @@ st.markdown(
     }
     [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
     [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
-        min-height: 36px;
+        height: 44px !important;
+        min-height: 44px;
         align-items: center;
         background: #f3f7f5 !important;
         border: 0 !important;
@@ -2182,18 +2184,44 @@ st.markdown(
     }
     .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] > div {
         display: flex !important;
-        flex: 0 0 2rem;
-        flex-direction: column;
+        flex: 0 0 5.4rem;
+        flex-direction: row;
         overflow: hidden;
+        border-left: 1px solid #d7e5df !important;
         border-radius: 0 calc(.72rem - 2px) calc(.72rem - 2px) 0 !important;
     }
     .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] button {
         flex: 1 1 50%;
         min-height: 0 !important;
         margin: 0 !important;
+        color: #07534b !important;
         border: 0 !important;
         border-radius: 0 !important;
         background: transparent !important;
+        cursor: pointer;
+        transition: background .15s ease, color .15s ease;
+    }
+    .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] button + button {
+        border-left: 1px solid #d7e5df !important;
+    }
+    .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] button:not(:disabled):hover {
+        color: white !important;
+        background: #0b4f49 !important;
+    }
+    .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] button:focus-visible {
+        position: relative;
+        z-index: 1;
+        outline: 2px solid #f1c45b;
+        outline-offset: -2px;
+    }
+    .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] button:disabled {
+        color: #9eada7 !important;
+        cursor: not-allowed;
+    }
+    .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] button svg {
+        width: .75rem !important;
+        height: .75rem !important;
+        color: currentColor !important;
     }
     .st-key-mv_filter_shell [data-testid="stNumberInput"]:focus-within [data-testid="stNumberInputContainer"] {
         background: linear-gradient(110deg, #07534b 0%, #f1c45b 100%) !important;
