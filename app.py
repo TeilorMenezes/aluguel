@@ -2159,10 +2159,13 @@ st.markdown(
         box-shadow: 0 0 0 .24rem rgba(241,196,91,.18) !important;
     }
     .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] {
+        display: flex !important;
+        align-items: stretch;
         min-height: 40px;
         padding: 2px;
         background: linear-gradient(110deg, #07534b 0%, #168072 48%, #f1c45b 100%) !important;
         border-radius: .72rem;
+        overflow: hidden;
         transition: box-shadow .2s ease, background .2s ease;
     }
     .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] > input,
@@ -2173,10 +2176,24 @@ st.markdown(
         border: 0 !important;
     }
     .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] > input {
+        flex: 1 1 auto;
+        min-width: 0;
         border-radius: calc(.72rem - 2px) 0 0 calc(.72rem - 2px) !important;
     }
     .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] > div {
+        display: flex !important;
+        flex: 0 0 2rem;
+        flex-direction: column;
+        overflow: hidden;
         border-radius: 0 calc(.72rem - 2px) calc(.72rem - 2px) 0 !important;
+    }
+    .st-key-mv_filter_shell [data-testid="stNumberInputContainer"] button {
+        flex: 1 1 50%;
+        min-height: 0 !important;
+        margin: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
     }
     .st-key-mv_filter_shell [data-testid="stNumberInput"]:focus-within [data-testid="stNumberInputContainer"] {
         background: linear-gradient(110deg, #07534b 0%, #f1c45b 100%) !important;
