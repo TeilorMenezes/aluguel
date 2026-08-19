@@ -874,6 +874,13 @@ def _extrair_cards(page, cfg_site: dict):
                 bairro = endereco_extraido["bairro"] or bairro_txt or extraido["bairro"]
                 cidade = endereco_extraido["cidade"] or extraido["cidade"] or cidade_explicita or cidade_url or cfg_site.get("cidade_padrao")
             bairro, cidade = normalizar_localizacao(bairro, cidade, cfg_site.get("cidade_padrao"))
+            # Alguns portais omitem o endereço para proteger o proprietário,
+            # mas declaram o bairro no título do próprio card. Esse sinal é
+            # explícito e evita abrir uma página de detalhe para cada anúncio.
+            if not bairro:
+                bairro_titulo, cidade_titulo = _bairro_marcado_no_titulo(titulo, cidade)
+                bairro = bairro_titulo or bairro
+                cidade = cidade_titulo or cidade
             tipo = normalizar_tipo(tipo_txt or extraido["tipo"])
 
             itens.append({
