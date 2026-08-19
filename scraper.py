@@ -137,7 +137,10 @@ def _cidade_da_url(url):
     candidato = partes[-1].replace("-", " ").replace("_", " ").strip()
     if (
         not re.fullmatch(r"[A-Za-zÀ-ÿ ]{3,60}", candidato)
-        or candidato.casefold() in {"aluguel", "alugar", "imoveis", "imóveis", "mg", "br"}
+        or candidato.casefold() in {
+            "aluguel", "alugar", "imoveis", "imóveis", "pesquisa imoveis",
+            "pesquisa imóveis", "busca", "resultados", "mg", "br",
+        }
     ):
         return None
     return normalizar_cidade(candidato)
@@ -379,7 +382,7 @@ def _bairro_marcado_no_titulo(texto, cidade_padrao=None):
         maxsplit=1,
         flags=re.I,
     )[0]
-    return normalizar_localizacao(bairro, cidade_padrao, cidade_padrao)
+    return normalizar_localizacao(bairro, None, cidade_padrao)
 
 
 def _localizacao_da_pagina(page, cfg_site, bairro_atual=None, cidade_atual=None):
@@ -434,7 +437,7 @@ def _localizacao_da_pagina(page, cfg_site, bairro_atual=None, cidade_atual=None)
             if not texto or texto in vistos:
                 continue
             vistos.add(texto)
-            bairro, cidade = normalizar_localizacao(texto, cidade_padrao, cidade_padrao)
+            bairro, cidade = normalizar_localizacao(texto, None, cidade_padrao)
             if bairro or cidade:
                 candidatos.append((confianca, bairro, cidade))
 
@@ -466,6 +469,18 @@ def _localizacao_da_pagina(page, cfg_site, bairro_atual=None, cidade_atual=None)
         key=lambda item: (bool(item[1]), item[0], bool(item[2])),
     )
     return bairro or bairro_atual, cidade or cidade_atual or normalizar_cidade(cidade_padrao)
+
+
+def _nova_pagina_detalhe(page):
+    """Abre detalhe sem depender do contexto implícito de ``browser.new_page``."""
+    contexto = page.context
+    try:
+        return contexto.new_page()
+    except Exception:
+        navegador = getattr(contexto, "browser", None)
+        if navegador:
+            return navegador.new_page()
+        raise
 
 
 def _selecionar(card, seletor):
@@ -666,7 +681,7 @@ def _enriquecer_itens_incompletos(page, itens, cfg_site, limite=15):
     for item in pendentes:
         detalhe = None
         try:
-            detalhe = page.context.new_page()
+            detalhe = _nova_pagina_detalhe(page)
             detalhe.goto(item["url"], timeout=45000, wait_until="domcontentloaded")
             detalhe.wait_for_timeout(1200)
 

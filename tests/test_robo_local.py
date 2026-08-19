@@ -156,6 +156,14 @@ class RoboLocalTest(unittest.TestCase):
             scraper._localizacao_da_pagina(page, {"cidade_padrao": "Campinas"}),
             ("Cambuí", "Campinas"),
         )
+        self.assertEqual(
+            scraper._localizacao_da_pagina(
+                page,
+                {"cidade_padrao": "Ipatinga"},
+                cidade_atual="Ipatinga",
+            ),
+            ("Cambuí", "Campinas"),
+        )
 
     def test_localizacao_da_pagina_aceita_bairro_declarado_no_titulo(self):
         page = _DetailPage({
@@ -203,6 +211,9 @@ class RoboLocalTest(unittest.TestCase):
     def test_cidade_da_url_e_gate_de_saude_do_lote(self):
         self.assertEqual(
             scraper._cidade_da_url("https://exemplo.test/alugar/icara"), "Icara"
+        )
+        self.assertIsNone(
+            scraper._cidade_da_url("https://exemplo.test/pesquisa-imoveis/")
         )
         lote_saudavel = [
             {
