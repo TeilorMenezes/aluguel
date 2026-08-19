@@ -60,6 +60,35 @@ class _ImageElement:
         return self.child
 
 
+class _TextElement:
+    def __init__(self, text):
+        self.text = text
+
+    def inner_text(self):
+        return self.text
+
+
+class _DetailPage:
+    def __init__(self, by_selector):
+        self.by_selector = by_selector
+
+    def query_selector_all(self, selector):
+        return self.by_selector.get(selector, [])
+
+    def query_selector(self, selector):
+        elementos = self.query_selector_all(selector)
+        return elementos[0] if elementos else None
+
+    def goto(self, *_args, **_kwargs):
+        return None
+
+    def wait_for_timeout(self, _milliseconds):
+        return None
+
+    def close(self):
+        return None
+
+
 class RoboLocalTest(unittest.TestCase):
     def test_thumbnail_pode_vir_de_container_srcset_ou_background(self):
         lazy = _ImageElement({"data-src": "/foto.webp"})
@@ -97,6 +126,67 @@ class RoboLocalTest(unittest.TestCase):
             cidade_explicita_em_texto("Loja, Lourdes - Governador Valadares/MG"),
             "Governador Valadares",
         )
+        self.assertEqual(
+            normalizar_localizacao("Cambuí, Campinas - SP", None),
+            ("Cambuí", "Campinas"),
+        )
+
+    def test_localizacao_da_pagina_prioriza_json_ld_e_endereco(self):
+        json_ld = '''
+            {"@context": "https://schema.org", "address": {
+                "addressNeighborhood": "Cidade Nobre",
+                "addressLocality": "Ipatinga",
+                "addressRegion": "MG"
+            }}
+        '''
+        page = _DetailPage({
+            'script[type="application/ld+json"]': [_TextElement(json_ld)],
+            "address": [_TextElement("Outro bairro, Timóteo - MG")],
+        })
+        self.assertEqual(
+            scraper._localizacao_da_pagina(page, {"cidade_padrao": "Ipatinga"}),
+            ("Cidade Nobre", "Ipatinga"),
+        )
+
+    def test_localizacao_da_pagina_aceita_endereco_de_fonte_sem_json_ld(self):
+        page = _DetailPage({
+            "address": [_TextElement("Cambuí, Campinas - SP")],
+        })
+        self.assertEqual(
+            scraper._localizacao_da_pagina(page, {"cidade_padrao": "Campinas"}),
+            ("Cambuí", "Campinas"),
+        )
+
+    def test_localizacao_da_pagina_aceita_bairro_declarado_no_titulo(self):
+        page = _DetailPage({
+            "h1": [_TextElement("Apartamento para alugar no Bairro Veneza II")],
+        })
+        self.assertEqual(
+            scraper._localizacao_da_pagina(page, {"cidade_padrao": "Ipatinga"}),
+            ("Veneza Ii", "Ipatinga"),
+        )
+
+    def test_enriquecimento_consulta_detalhe_quando_bairro_esta_ausente(self):
+        detalhe = _DetailPage({
+            "h1": [_TextElement("Apartamento Bairro Veneza II")],
+        })
+        listagem = SimpleNamespace(
+            context=SimpleNamespace(new_page=lambda: detalhe),
+        )
+        item = {
+            "url": "https://exemplo.test/imovel/1",
+            "titulo": "Apartamento Bairro Veneza II",
+            "tipo": "Apartamento",
+            "preco": 1200,
+            "bairro": None,
+            "cidade": "Ipatinga",
+            "thumbnail_url": None,
+        }
+        scraper._enriquecer_itens_incompletos(
+            listagem, [item], {"cidade_padrao": "Ipatinga"}
+        )
+        self.assertEqual(item["bairro"], "Veneza Ii")
+        self.assertEqual(item["cidade"], "Ipatinga")
 
     def test_preco_prioriza_locacao_e_ignora_venda_condominio(self):
         self.assertEqual(

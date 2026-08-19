@@ -77,8 +77,8 @@ def cidade_explicita_em_texto(*valores):
         if not texto:
             continue
         for padrao in (
-            r"(?:[|,]|\s[-–—]\s)\s*([^|,/]+?)\s*(?:[-,/]\s*)MG\b",
-            r"\bem\s+([^|,/]+?)\s*/\s*MG\b",
+            r"(?:[|,]|\s[-–—]\s)\s*([^|,/]+?)\s*(?:[-,/]\s*)(?:MG|minas gerais|[A-Z]{2})\b",
+            r"\bem\s+([^|,/]+?)\s*/\s*(?:MG|minas gerais|[A-Z]{2})\b",
         ):
             encontrados = list(re.finditer(padrao, texto, re.I))
             if not encontrados:
@@ -94,13 +94,25 @@ def cidade_explicita_em_texto(*valores):
 def normalizar_localizacao(bairro, cidade, cidade_padrao=None):
     """Separa bairro e cidade e descarta rua/texto genérico como bairro."""
     bairro_original = limpar_texto(bairro)
-    cidade_normalizada = _cidade_explicita(bairro_original, cidade) or normalizar_cidade(cidade) or normalizar_cidade(cidade_padrao)
+    cidade_normalizada = (
+        _cidade_explicita(bairro_original, cidade)
+        or cidade_explicita_em_texto(bairro_original, cidade)
+        or normalizar_cidade(cidade)
+        or normalizar_cidade(cidade_padrao)
+    )
     if not bairro_original:
         return None, cidade_normalizada
     bairro_limpo = re.sub(r"^(bairro|localiza[cç][aã]o|endere[cç]o)\s*:\s*", "", bairro_original, flags=re.I)
     for nome in _CIDADES:
-        bairro_limpo = re.sub(rf"\s*[,|/-]?\s*{re.escape(nome)}\s*(?:[-,/|]\s*(?:mg|minas gerais))?\s*$", "", bairro_limpo, flags=re.I)
-    bairro_limpo = re.sub(r"\s*[-,/|]\s*(?:mg|minas gerais|brasil)\s*$", "", bairro_limpo, flags=re.I)
+        bairro_limpo = re.sub(rf"\s*[,|/-]?\s*{re.escape(nome)}\s*(?:[-,/|]\s*(?:mg|minas gerais|[a-z]{{2}}))?\s*$", "", bairro_limpo, flags=re.I)
+    if cidade_normalizada:
+        bairro_limpo = re.sub(
+            rf"\s*[,|/-]?\s*{re.escape(cidade_normalizada)}\s*(?:[-,/|]\s*(?:minas gerais|[a-z]{{2}}))?\s*$",
+            "",
+            bairro_limpo,
+            flags=re.I,
+        )
+    bairro_limpo = re.sub(r"\s*[-,/|]\s*(?:minas gerais|brasil|[a-z]{2})\s*$", "", bairro_limpo, flags=re.I)
     bairro_limpo = limpar_texto(bairro_limpo)
     if not bairro_limpo:
         return None, cidade_normalizada

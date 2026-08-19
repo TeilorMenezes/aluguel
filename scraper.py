@@ -312,6 +312,162 @@ def _aplicar_endereco_regex(texto: str, padrao: str):
     return resultado
 
 
+def _texto_seguro(elemento):
+    """Lê texto de elementos opcionais, inclusive scripts JSON-LD."""
+    if elemento is None:
+        return None
+    try:
+        texto = elemento.inner_text()
+    except Exception:
+        try:
+            texto = elemento.text_content()
+        except Exception:
+            texto = None
+    return texto.strip() if texto and texto.strip() else None
+
+
+def _enderecos_estruturados(valor):
+    """Percorre JSON-LD sem presumir o formato usado por cada portal."""
+    if isinstance(valor, list):
+        for item in valor:
+            yield from _enderecos_estruturados(item)
+        return
+    if not isinstance(valor, dict):
+        return
+
+    endereco = valor.get("address")
+    if isinstance(endereco, dict):
+        yield endereco
+    if any(chave in valor for chave in (
+        "addressNeighborhood", "neighborhood", "district", "addressLocality", "addressCity",
+    )):
+        yield valor
+    for chave in ("@graph", "mainEntity", "itemListElement"):
+        if chave in valor:
+            yield from _enderecos_estruturados(valor[chave])
+
+
+def _valor_endereco(valor, *chaves):
+    for chave in chaves:
+        texto = valor.get(chave) if isinstance(valor, dict) else None
+        if isinstance(texto, str) and texto.strip():
+            return texto.strip()
+    return None
+
+
+def _normalizar_endereco_estruturado(valor, cidade_padrao=None):
+    """Normaliza somente campos de localização explícitos de um JSON-LD."""
+    bairro = _valor_endereco(
+        valor, "addressNeighborhood", "neighborhood", "district", "bairro"
+    )
+    cidade = _valor_endereco(
+        valor, "addressLocality", "addressCity", "city", "cidade"
+    )
+    return normalizar_localizacao(bairro, cidade, cidade_padrao)
+
+
+def _bairro_marcado_no_titulo(texto, cidade_padrao=None):
+    """Aceita somente títulos que declaram o bairro de forma explícita."""
+    if not texto:
+        return None, None
+    encontrado = re.search(r"\b(?:no\s+|na\s+)?bairro\s+(.+)$", texto, re.I)
+    if not encontrado:
+        return None, None
+    bairro = re.split(
+        r"\s*(?:\||·|—)|\s+(?:para\s+(?:alugar|vender)|a\s+venda)\b",
+        encontrado.group(1),
+        maxsplit=1,
+        flags=re.I,
+    )[0]
+    return normalizar_localizacao(bairro, cidade_padrao, cidade_padrao)
+
+
+def _localizacao_da_pagina(page, cfg_site, bairro_atual=None, cidade_atual=None):
+    """Recupera localização da página individual, priorizando dados explícitos.
+
+    A listagem é rápida, mas frequentemente omite o bairro. Esta função usa
+    somente campos com semântica de endereço (JSON-LD, microdados, endereço ou
+    breadcrumb), evitando inferir bairro a partir da descrição inteira.
+    """
+    cidade_padrao = cidade_atual or cfg_site.get("cidade_padrao")
+    candidatos = []
+
+    try:
+        scripts = page.query_selector_all('script[type="application/ld+json"]')
+    except Exception:
+        scripts = []
+    for script in scripts:
+        texto = _texto_seguro(script)
+        if not texto:
+            continue
+        try:
+            dados = json.loads(texto)
+        except (TypeError, ValueError):
+            continue
+        for endereco in _enderecos_estruturados(dados):
+            bairro, cidade = _normalizar_endereco_estruturado(endereco, cidade_padrao)
+            if bairro or cidade:
+                candidatos.append((100 if bairro and cidade else 90, bairro, cidade))
+
+    seletores = (
+        ("[itemprop='address']", 80),
+        ("[itemprop='addressLocality']", 75),
+        ("address", 75),
+        ("[class*='address' i]", 70),
+        ("[class*='endereco' i]", 70),
+        ("[class*='localizacao' i]", 65),
+        ("[class*='location' i]", 65),
+        ("[class*='bairro' i]", 65),
+        ("[aria-label*='endereço' i]", 65),
+        ("[aria-label*='localização' i]", 65),
+        ("nav[aria-label*='breadcrumb' i]", 55),
+        (".breadcrumb", 55),
+    )
+    vistos = set()
+    for seletor, confianca in seletores:
+        try:
+            elementos = page.query_selector_all(seletor)
+        except Exception:
+            continue
+        for elemento in elementos[:8]:
+            texto = _texto_seguro(elemento)
+            if not texto or texto in vistos:
+                continue
+            vistos.add(texto)
+            bairro, cidade = normalizar_localizacao(texto, cidade_padrao, cidade_padrao)
+            if bairro or cidade:
+                candidatos.append((confianca, bairro, cidade))
+
+    # Alguns sites não publicam endereço para proteger o proprietário, mas o
+    # próprio título diz "Bairro X". É um sinal explícito e bem mais seguro do
+    # que tentar inferir qualquer palavra da descrição.
+    for seletor in ("h1", "meta[property='og:title']", "meta[name='title']"):
+        try:
+            elementos = page.query_selector_all(seletor)
+        except Exception:
+            continue
+        for elemento in elementos[:2]:
+            texto = _texto_seguro(elemento)
+            if not texto:
+                try:
+                    texto = elemento.get_attribute("content")
+                except Exception:
+                    texto = None
+            bairro, cidade = _bairro_marcado_no_titulo(texto, cidade_padrao)
+            if bairro:
+                candidatos.append((45, bairro, cidade))
+
+    if not candidatos:
+        return None, None
+    _, bairro, cidade = max(
+        candidatos,
+        # Para preencher bairro ausente, um bairro explícito do título é mais
+        # útil que um endereço estrutural que informe somente a cidade.
+        key=lambda item: (bool(item[1]), item[0], bool(item[2])),
+    )
+    return bairro or bairro_atual, cidade or cidade_atual or normalizar_cidade(cidade_padrao)
+
+
 def _selecionar(card, seletor):
     """Consulta um seletor opcional sem deixar um valor vazio invalidar o card."""
     if not seletor:
@@ -490,11 +646,22 @@ def _extrair_com_autocorrecao(page, cfg_site):
     return itens_originais
 
 
-def _enriquecer_itens_incompletos(page, itens, limite=15):
-    """Recupera dados na página individual somente quando o card é incompleto."""
+def _enriquecer_itens_incompletos(page, itens, cfg_site, limite=15):
+    """Recupera dados na página individual somente quando o card é incompleto.
+
+    Bairro e cidade entram no mesmo fluxo porque diversos portais só mostram o
+    endereço completo no anúncio, não no card de listagem.
+    """
     pendentes = [
         item for item in itens
-        if item.get("preco") is None or not item.get("titulo") or item["titulo"] == "Imóvel para alugar" or not item.get("tipo")
+        if (
+            item.get("preco") is None
+            or not item.get("titulo")
+            or item["titulo"] == "Imóvel para alugar"
+            or not item.get("tipo")
+            or not item.get("bairro")
+            or not item.get("cidade")
+        )
     ][:limite]
     for item in pendentes:
         detalhe = None
@@ -519,6 +686,16 @@ def _enriquecer_itens_incompletos(page, itens, limite=15):
             if not item.get("tipo") and item.get("titulo"):
                 primeiro_termo = re.split(r"[|,–-]", item["titulo"], maxsplit=1)[0]
                 item["tipo"] = normalizar_tipo(primeiro_termo)
+
+            if not item.get("bairro") or not item.get("cidade"):
+                bairro, cidade = _localizacao_da_pagina(
+                    detalhe,
+                    cfg_site,
+                    bairro_atual=item.get("bairro"),
+                    cidade_atual=item.get("cidade"),
+                )
+                item["bairro"] = bairro
+                item["cidade"] = cidade
         except Exception:
             continue
         finally:
@@ -699,7 +876,7 @@ def _raspar_com_botao(page, cfg_site: dict, pag_cfg: dict):
         if sem_novos >= sem_novos_limite:
             break
 
-    return _enriquecer_itens_incompletos(page, todos_itens)
+    return _enriquecer_itens_incompletos(page, todos_itens, cfg_site)
 
 
 def _raspar_com_rolagem(page, cfg_site: dict, pag_cfg: dict):
@@ -716,7 +893,7 @@ def _raspar_com_rolagem(page, cfg_site: dict, pag_cfg: dict):
         sem_novos = 0 if novos else sem_novos + 1
         if sem_novos >= sem_novos_limite:
             break
-    return _enriquecer_itens_incompletos(page, todos_itens)
+    return _enriquecer_itens_incompletos(page, todos_itens, cfg_site)
 
 
 def _detectar_controle_continuacao(page):
@@ -1033,7 +1210,7 @@ def _raspar_com_deteccao_automatica(page, cfg_site: dict):
                 "_filtros": filtros,
                 "aprendida_automaticamente": True,
             }
-    return _enriquecer_itens_incompletos(page, todos_itens), {"tipo": "nenhuma"}
+    return _enriquecer_itens_incompletos(page, todos_itens, cfg_site), {"tipo": "nenhuma"}
 
 
 def _valor_dict(record, names):
@@ -1177,7 +1354,7 @@ def _raspar_com_api_aprendida(playwright, cfg_site, pag_cfg, headless):
             raise RuntimeError(
                 f"A API retornou apenas {len(seen)} anúncios; o mínimo seguro é {minimum}."
             )
-        return _enriquecer_itens_incompletos(page, all_items)
+        return _enriquecer_itens_incompletos(page, all_items, cfg_site)
     finally:
         browser.close()
 
@@ -1236,7 +1413,7 @@ def _coletar_visualizacao_atual(page, cfg_site, pag_cfg):
     if kind == "rolagem":
         return _raspar_com_rolagem(page, cfg_site, pag_cfg)
     return _enriquecer_itens_incompletos(
-        page, _extrair_com_autocorrecao(page, cfg_site)
+        page, _extrair_com_autocorrecao(page, cfg_site), cfg_site
     )
 
 
@@ -1339,7 +1516,7 @@ def _raspar_com_paginacao_url(playwright, cfg_site: dict, pag_cfg: dict, headles
             for item in novos:
                 urls_vistas.add(item["url"])
             todos_itens.extend(novos)
-        return _enriquecer_itens_incompletos(page, todos_itens)
+        return _enriquecer_itens_incompletos(page, todos_itens, cfg_site)
     finally:
         browser.close()
 
@@ -1447,7 +1624,9 @@ def _raspar_site(playwright, cfg_site: dict, headless=True):
             itens, estrategia = _raspar_com_deteccao_automatica(page, cfg_site)
             _salvar_paginacao_aprendida(cfg_site.get("_site_key"), estrategia)
         else:
-            itens = _enriquecer_itens_incompletos(page, _extrair_com_autocorrecao(page, cfg_site))
+            itens = _enriquecer_itens_incompletos(
+                page, _extrair_com_autocorrecao(page, cfg_site), cfg_site
+            )
     finally:
         browser.close()
 
