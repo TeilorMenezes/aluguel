@@ -125,6 +125,25 @@ class FiltrosPublicosTest(unittest.TestCase):
             )["cidade"],
         )
 
+    def test_serializa_todas_as_cidades_sem_chave_legada(self):
+        parametros = parametros_resultados_url(
+            {
+                "cidades": [],
+                "bairros": [],
+                "tipo": "Todos os tipos",
+                "imobiliarias": [],
+                "preco_min": None,
+                "preco_max": None,
+                "incluir_sem_preco": True,
+                "ordem": "recentes",
+                "pagina": 1,
+            },
+            todas_cidades="Todas as cidades",
+            todos_tipos="Todos os tipos",
+        )
+
+        self.assertNotIn("cidade", parametros)
+
 
 class ConsultasPublicasTest(unittest.TestCase):
     def setUp(self):
