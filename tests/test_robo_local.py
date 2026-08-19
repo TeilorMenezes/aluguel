@@ -192,7 +192,7 @@ class RoboLocalTest(unittest.TestCase):
         })
         self.assertEqual(
             scraper._localizacao_da_pagina(page, {"cidade_padrao": "Ipatinga"}),
-            ("Veneza Ii", "Ipatinga"),
+            ("Veneza II", "Ipatinga"),
         )
 
     def test_enriquecimento_consulta_detalhe_quando_bairro_esta_ausente(self):
@@ -214,7 +214,7 @@ class RoboLocalTest(unittest.TestCase):
         scraper._enriquecer_itens_incompletos(
             listagem, [item], {"cidade_padrao": "Ipatinga"}
         )
-        self.assertEqual(item["bairro"], "Veneza Ii")
+        self.assertEqual(item["bairro"], "Veneza II")
         self.assertEqual(item["cidade"], "Ipatinga")
 
     def test_enriquecimento_respeita_limite_e_mesma_fonte(self):

@@ -10,7 +10,7 @@ def _sem_acento(valor: str) -> str:
 def limpar_texto(valor):
     if valor is None:
         return None
-    texto = re.sub(r"\s+", " ", str(valor).replace("\xa0", " ")).strip(" -|,;:.")
+    texto = re.sub(r"\s+", " ", str(valor).replace("\xa0", " ")).strip(" _-|,;:.")
     return texto or None
 
 
@@ -22,6 +22,7 @@ _CIDADES = {
 }
 _LIXO_BAIRRO = {"aluguel", "alugar", "locacao", "locação", "imovel", "imóvel", "residencial",
                  "comercial", "mg", "minas gerais", "brasil", "nao informado", "não informado", "consulte"}
+_LIXO_CIDADE = _LIXO_BAIRRO | {"imoveis locacao", "imóveis locação", "condominio fechado", "condomínio fechado"}
 _MARCADORES_ENDERECO = re.compile(r"\b(rua|avenida|av\.?|rodovia|estrada|travessa|praca|praça|numero|nº|cep)\b", re.I)
 _MARCADORES_DESCRICAO = re.compile(
     r"\b(para\s+alugu[ea]r|quartos?|su[ií]te|vagas?|m[²2]|comercial)\b", re.I
@@ -34,6 +35,30 @@ _MARCADORES_NAVEGACAO = re.compile(
     r"\b(previous|next|anterior|pr[oó]xim[oa]|p[aá]gina|page|‹|›|«|»)\b|\{\{",
     re.I,
 )
+
+
+def chave_localidade(valor):
+    """Chave sem acento para comparar grafias de cidade e bairro."""
+    texto = limpar_texto(valor)
+    if not texto:
+        return None
+    return re.sub(r"[^a-z0-9]+", " ", _sem_acento(texto).lower()).strip() or None
+
+
+def _nome_localidade(valor):
+    """Apresentação estável, preservando conectivos e algarismos romanos."""
+    palavras = str(valor).title().split()
+    conectivos = {"Da", "Das", "De", "Do", "Dos", "E"}
+    romanos = {"I", "Ii", "Iii", "Iv", "V", "Vi", "Vii", "Viii", "Ix", "X"}
+    resultado = []
+    for indice, palavra in enumerate(palavras):
+        if indice and palavra in conectivos:
+            resultado.append(palavra.lower())
+        elif palavra in romanos:
+            resultado.append(palavra.upper())
+        else:
+            resultado.append(palavra)
+    return " ".join(resultado)
 
 
 def eh_bairro_valido(valor):
@@ -54,13 +79,17 @@ def normalizar_cidade(valor):
         return None
     chave = _sem_acento(texto).lower()
     chave = re.sub(r"\b(mg|minas gerais|brasil)\b", " ", chave)
-    chave = re.sub(r"\s+", " ", chave).strip(" ,-/")
+    chave = re.sub(r"\s+", " ", chave).strip(" _ ,-/")
+    if not chave or chave in {_sem_acento(item).lower() for item in _LIXO_CIDADE}:
+        return None
+    if re.search(r"\b(imoveis?|locacao|aluguel|venda|condominio|comercial)\b", chave):
+        return None
     if chave in _CIDADES:
         return _CIDADES[chave]
     for nome, canonica in _CIDADES.items():
         if re.search(rf"(?:^|\W){re.escape(nome)}(?:$|\W)", chave):
             return canonica
-    return texto.title()
+    return _nome_localidade(chave)
 
 
 def _cidade_explicita(*valores):
@@ -126,7 +155,7 @@ def normalizar_localizacao(bairro, cidade, cidade_padrao=None):
         return None, cidade_normalizada
     if cidade_normalizada and chave == _sem_acento(cidade_normalizada).lower():
         return None, cidade_normalizada
-    return bairro_limpo.title(), cidade_normalizada
+    return _nome_localidade(bairro_limpo), cidade_normalizada
 
 
 _IMOBILIARIAS = {"diferencialimoveis.com": "Diferencial Imóveis", "diferencial imoveis": "Diferencial Imóveis"}

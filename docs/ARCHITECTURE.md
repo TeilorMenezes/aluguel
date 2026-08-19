@@ -78,6 +78,10 @@ auditoria e indicadores.
 - Um checksum novo substitui atomicamente o banco efêmero anterior; o mesmo
   snapshot não é reaplicado em cada rerun.
 - Banco administrativo e banco público são separados.
+- Cidades exibidas no catálogo são municípios oficiais da referência pública
+  versionada do IBGE; grafias equivalentes são consolidadas antes de virar filtro.
+- Bairros são evidência da fonte: só aparecem quando associados a uma cidade
+  oficial e passam por limpeza, deduplicação tipográfica e validação de conteúdo.
 - Estratégia aprendida conserva fallback e histórico de validação.
 - Uma resposta vazia não promove estratégia nem remove catálogo anterior.
 - Toda execução recebe identificador e timestamps em `America/Sao_Paulo` ou UTC

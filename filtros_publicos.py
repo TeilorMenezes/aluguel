@@ -71,8 +71,8 @@ def restaurar_filtros_resultados(
     todos_tipos: str,
 ) -> dict[str, object]:
     """Converte a URL em um estado seguro, descartando valores inválidos."""
-    cidade = primeiro_parametro(parametros, "cidade")
-    cidade = cidade if cidade in cidades else todas_cidades
+    cidades_selecionadas = selecoes_validas(valores_parametro(parametros, "cidade"), cidades)
+    cidade = cidades_selecionadas[0] if len(cidades_selecionadas) == 1 else todas_cidades
 
     tipo = primeiro_parametro(parametros, "tipo") or primeiro_parametro(parametros, "categoria")
     tipo = tipo if tipo in tipos else todos_tipos
@@ -88,7 +88,9 @@ def restaurar_filtros_resultados(
 
     ordem = primeiro_parametro(parametros, "ordem")
     return {
+        # "cidade" continua disponível para links e integrações antigos.
         "cidade": cidade,
+        "cidades": cidades_selecionadas,
         "bairros": selecoes_validas(valores_parametro(parametros, "bairro"), bairros),
         "tipo": tipo,
         "imobiliarias": selecoes_validas(
@@ -109,8 +111,11 @@ def parametros_resultados_url(
 ) -> dict[str, str | list[str]]:
     """Serializa o estado canônico dos filtros para a URL pública."""
     parametros: dict[str, str | list[str]] = {"tela": "resultados"}
-    if filtros["cidade"] != todas_cidades:
-        parametros["cidade"] = str(filtros["cidade"])
+    cidades = filtros.get("cidades")
+    if not cidades and filtros.get("cidade") != todas_cidades:
+        cidades = [str(filtros["cidade"])]
+    if cidades:
+        parametros["cidade"] = list(dict.fromkeys(str(cidade) for cidade in cidades))
     if filtros["tipo"] != todos_tipos:
         parametros["tipo"] = str(filtros["tipo"])
     if filtros["bairros"]:
