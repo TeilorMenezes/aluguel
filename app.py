@@ -2520,28 +2520,31 @@ def renderizar_landing_v2():
         unsafe_allow_html=True,
     )
 
-    cidades_base = ["Ipatinga", "Timóteo", "Coronel Fabriciano", "Santana do Paraíso"]
-    cidades = ["Todas as cidades"] + list(dict.fromkeys(db.listar_cidades() + cidades_base))
+    cidades = db.listar_cidades()
     with st.container(key="mv_v2_search"):
         with st.form("busca_landing_v2"):
-            coluna_cidade, coluna_tipo, coluna_botao = st.columns([1.2, 1, .85], vertical_alignment="bottom")
+            coluna_cidade, coluna_botao = st.columns([1.7, .85], vertical_alignment="bottom")
             with coluna_cidade:
-                cidade = st.selectbox("Cidade", cidades, key="cidade_landing_v2")
-            with coluna_tipo:
-                tipo = st.selectbox(
-                    "Tipo de imóvel",
-                    ["Todos os tipos", "Apartamento", "Casa", "Kitnet"],
-                    key="tipo_landing_v2",
+                cidades_landing = st.multiselect(
+                    "Cidades",
+                    cidades,
+                    key="cidades_landing_v2",
+                    placeholder="Todas as cidades",
                 )
             with coluna_botao:
                 buscar = st.form_submit_button("Encontrar imóveis →", type="primary", use_container_width=True)
 
     if buscar:
-        st.session_state["cidade_resultados"] = cidade
-        st.session_state["tipo_resultados"] = tipo
+        for parametro in _PARAMETROS_RESULTADOS_V2:
+            if parametro in st.query_params:
+                del st.query_params[parametro]
+        st.session_state["filtro_cidades_v2"] = cidades_landing
+        st.session_state["filtro_bairros_v2"] = []
+        st.session_state["filtro_tipo_v2"] = "Todos os tipos"
+        st.session_state["filtro_imobiliarias_v2"] = []
         st.query_params["tela"] = "resultados"
-        st.query_params["cidade"] = cidade
-        st.query_params["tipo"] = tipo
+        if cidades_landing:
+            st.query_params["cidade"] = cidades_landing
         st.rerun()
 
     st.markdown(
@@ -2566,7 +2569,7 @@ def renderizar_landing_v2():
                         <div class="mv-step-kicker">Busque</div>
                         <div class="mv-step-copy">
                             <h3>Escolha seus filtros</h3>
-                            <p>Defina cidade, bairro, tipo de imóvel e a faixa de preço.</p>
+                            <p>Defina cidades, bairro e a faixa de preço.</p>
                         </div>
                         <span class="mv-step-arrow" aria-hidden="true">→</span>
                     </article>
@@ -2791,7 +2794,7 @@ def renderizar_resultados_v2():
     )
 
     with st.container(key="mv_filter_shell"):
-        linha_essencial = st.columns(4)
+        linha_essencial = st.columns(5 if st.session_state["filtro_cidades_v2"] else 4)
         with linha_essencial[0]:
             cidades_selecionadas = st.multiselect(
                 "Cidades",
@@ -2805,16 +2808,28 @@ def renderizar_resultados_v2():
         st.session_state["filtro_bairros_v2"] = selecoes_validas(
             st.session_state.get("filtro_bairros_v2", []), bairros
         )
+        proxima_coluna = 1
+        bairros_selecionados = []
+        if cidades_selecionadas:
+            with linha_essencial[proxima_coluna]:
+                bairros_selecionados = st.multiselect(
+                    "Bairros",
+                    bairros,
+                    key="filtro_bairros_v2",
+                    placeholder="Todos os bairros",
+                    on_change=_limpar_dependentes_bairro_v2,
+                )
+            proxima_coluna += 1
         tipos = [todos_tipos, *db.listar_tipos(cidades=cidades_consulta)]
         if st.session_state.get("filtro_tipo_v2") not in tipos:
             st.session_state["filtro_tipo_v2"] = todos_tipos
-        with linha_essencial[1]:
+        with linha_essencial[proxima_coluna]:
             tipo = st.selectbox(
                 "Tipo de imóvel",
                 tipos,
                 key="filtro_tipo_v2",
             )
-        with linha_essencial[2]:
+        with linha_essencial[proxima_coluna + 1]:
             preco_min = st.number_input(
                 "Preço mínimo (R$)",
                 min_value=preco_minimo_bd if ha_precos else 0.0,
@@ -2825,7 +2840,7 @@ def renderizar_resultados_v2():
                 disabled=not ha_precos,
                 placeholder="Sem mínimo",
             )
-        with linha_essencial[3]:
+        with linha_essencial[proxima_coluna + 2]:
             preco_max = st.number_input(
                 "Preço máximo (R$)",
                 min_value=preco_minimo_bd if ha_precos else 0.0,
@@ -2839,33 +2854,20 @@ def renderizar_resultados_v2():
 
         with st.expander(
             "Mais filtros",
-            expanded=bool(
-                st.session_state["filtro_bairros_v2"]
-                or st.session_state.get("filtro_imobiliarias_v2")
-            ),
+            expanded=bool(st.session_state.get("filtro_imobiliarias_v2")),
         ):
-            linha_avancada = st.columns(2)
-            with linha_avancada[0]:
-                bairros_selecionados = st.multiselect(
-                    "Bairro",
-                    bairros,
-                    key="filtro_bairros_v2",
-                    placeholder="Todos os bairros",
-                    on_change=_limpar_dependentes_bairro_v2,
-                )
             imobiliarias = db.listar_imobiliarias(
                 cidades=cidades_consulta, bairros=bairros_selecionados or None
             )
             st.session_state["filtro_imobiliarias_v2"] = selecoes_validas(
                 st.session_state.get("filtro_imobiliarias_v2", []), imobiliarias
             )
-            with linha_avancada[1]:
-                imobiliarias_selecionadas = st.multiselect(
-                    "Imobiliária",
-                    imobiliarias,
-                    key="filtro_imobiliarias_v2",
-                    placeholder="Todas as imobiliárias",
-                )
+            imobiliarias_selecionadas = st.multiselect(
+                "Imobiliária",
+                imobiliarias,
+                key="filtro_imobiliarias_v2",
+                placeholder="Todas as imobiliárias",
+            )
 
         linha_contextual = st.columns([1.2, 1])
         with linha_contextual[0]:
