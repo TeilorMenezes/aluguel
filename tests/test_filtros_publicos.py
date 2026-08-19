@@ -4,6 +4,7 @@ from pathlib import Path
 
 import db
 from filtros_publicos import parametros_resultados_url, restaurar_filtros_resultados
+from normalizacao import normalizar_localizacao
 
 
 class FiltrosPublicosTest(unittest.TestCase):
@@ -99,6 +100,31 @@ class FiltrosPublicosTest(unittest.TestCase):
             parametros,
         )
 
+    def test_aceita_varias_cidades_repetidas_na_url(self):
+        filtros = restaurar_filtros_resultados(
+            {"cidade": ["Ipatinga", "Timóteo", "Ipatinga"]},
+            cidades=["Ipatinga", "Timóteo"],
+            bairros=[],
+            tipos=["Todos os tipos"],
+            imobiliarias=[],
+            preco_minimo=0,
+            preco_maximo=5000,
+            todas_cidades="Todas as cidades",
+            todos_tipos="Todos os tipos",
+        )
+
+        self.assertEqual(["Ipatinga", "Timóteo"], filtros["cidades"])
+        self.assertEqual("Todas as cidades", filtros["cidade"])
+        self.assertEqual(
+            ["Ipatinga", "Timóteo"],
+            parametros_resultados_url(
+                {**filtros, "bairros": [], "imobiliarias": [], "preco_min": None,
+                 "preco_max": None, "incluir_sem_preco": True, "ordem": "recentes", "pagina": 1},
+                todas_cidades="Todas as cidades",
+                todos_tipos="Todos os tipos",
+            )["cidade"],
+        )
+
 
 class ConsultasPublicasTest(unittest.TestCase):
     def setUp(self):
@@ -160,6 +186,19 @@ class ConsultasPublicasTest(unittest.TestCase):
             [item["url"] for item in crescentes[:2]],
         )
         self.assertEqual("https://exemplo.test/c", decrescentes[0]["url"])
+
+    def test_filtros_omitem_lixo_e_unem_variantes_de_localidade(self):
+        self.assertEqual(("Centro", "Contagem"), normalizar_localizacao("__Centro", "__Contagem"))
+        self.assertEqual(("Canaã", None), normalizar_localizacao("Canaã", None))
+
+        with db.get_conn() as conn:
+            conn.execute("UPDATE imoveis SET cidade = ?, bairro = ? WHERE url = ?", ("__Contagem", "Canaa", "https://exemplo.test/a"))
+            conn.execute("UPDATE imoveis SET cidade = ?, bairro = ? WHERE url = ?", ("Contagem", "Canaã", "https://exemplo.test/b"))
+            conn.execute("UPDATE imoveis SET cidade = ? WHERE url = ?", ("Imoveis Locacao", "https://exemplo.test/c"))
+        db.init_public_db()
+
+        self.assertEqual(["Contagem", "Ipatinga"], db.listar_cidades())
+        self.assertEqual(["Canaã", "Centro"], db.listar_bairros(cidades=["Contagem", "Ipatinga"]))
 
 
 if __name__ == "__main__":

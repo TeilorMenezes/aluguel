@@ -9,7 +9,14 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-from normalizacao import eh_bairro_valido, normalizar_imobiliaria, normalizar_localizacao
+from normalizacao import (
+    chave_localidade,
+    eh_bairro_valido,
+    normalizar_cidade,
+    normalizar_imobiliaria,
+    normalizar_localizacao,
+)
+from base_localidades import nome_municipio_ibge
 
 _DB_FROM_ENV = os.getenv("IMOVEIS_DB_PATH")
 DEFAULT_DB_PATH = Path(__file__).parent / "data" / "imoveis.db"
@@ -130,6 +137,7 @@ def init_public_db():
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_imoveis_site ON imoveis(site_key)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_imoveis_cidade ON imoveis(cidade)")
+        _normalizar_registros_existentes(conn)
 
 
 def _normalizar_registros_existentes(conn):
@@ -137,11 +145,42 @@ def _normalizar_registros_existentes(conn):
     linhas = conn.execute("SELECT id, bairro, cidade, imobiliaria FROM imoveis").fetchall()
     for linha in linhas:
         bairro, cidade = normalizar_localizacao(linha["bairro"], linha["cidade"])
+        cidade = nome_municipio_ibge(cidade) or cidade
         imobiliaria = normalizar_imobiliaria(linha["imobiliaria"])
-        conn.execute(
-            "UPDATE imoveis SET bairro = ?, cidade = ?, imobiliaria = ? WHERE id = ?",
-            (bairro, cidade, imobiliaria or linha["imobiliaria"], linha["id"]),
-        )
+        imobiliaria = imobiliaria or linha["imobiliaria"]
+        if (bairro, cidade, imobiliaria) != (
+            linha["bairro"], linha["cidade"], linha["imobiliaria"]
+        ):
+            conn.execute(
+                "UPDATE imoveis SET bairro = ?, cidade = ?, imobiliaria = ? WHERE id = ?",
+                (bairro, cidade, imobiliaria, linha["id"]),
+            )
+    _consolidar_variantes_localidade(conn, "cidade", normalizar_cidade)
+    _consolidar_variantes_localidade(
+        conn, "bairro", lambda valor: normalizar_localizacao(valor, None)[0]
+    )
+
+
+def _consolidar_variantes_localidade(conn, campo, normalizador):
+    """Une no banco variantes meramente tipográficas antes de expô-las no filtro."""
+    linhas = conn.execute(
+        f"SELECT {campo} AS valor, COUNT(*) AS total FROM imoveis "
+        f"WHERE {campo} IS NOT NULL GROUP BY {campo}"
+    ).fetchall()
+    grupos = {}
+    for linha in linhas:
+        valor = normalizador(linha["valor"])
+        chave = chave_localidade(valor)
+        if valor and chave:
+            grupos.setdefault(chave, []).append((valor, int(linha["total"])))
+    for variantes in grupos.values():
+        variantes.sort(key=lambda item: (-item[1], -sum(ord(char) > 127 for char in item[0]), item[0]))
+        canonica = variantes[0][0]
+        for variante, _ in variantes:
+            if variante != canonica:
+                conn.execute(
+                    f"UPDATE imoveis SET {campo} = ? WHERE {campo} = ?", (canonica, variante)
+                )
 
 
 def remover_duplicata_diferencial():
@@ -173,6 +212,7 @@ def upsert_imovel(item: dict):
     """Insere ou atualiza um imóvel (chave única = url)."""
     item = dict(item)
     item["bairro"], item["cidade"] = normalizar_localizacao(item.get("bairro"), item.get("cidade"))
+    item["cidade"] = nome_municipio_ibge(item["cidade"]) or item["cidade"]
     item["imobiliaria"] = normalizar_imobiliaria(item.get("imobiliaria")) or item["imobiliaria"]
     with get_conn() as conn:
         conn.execute("""
@@ -336,7 +376,14 @@ def listar_cidades():
         rows = conn.execute(
             "SELECT DISTINCT cidade FROM imoveis WHERE cidade IS NOT NULL ORDER BY cidade"
         ).fetchall()
-        return [r["cidade"] for r in rows]
+        cidades = {}
+        for row in rows:
+            cidade = normalizar_cidade(row["cidade"])
+            cidade = nome_municipio_ibge(cidade)
+            chave = chave_localidade(cidade)
+            if cidade and chave:
+                cidades[chave] = cidade
+        return sorted(cidades.values(), key=chave_localidade)
 
 
 def listar_tipos(cidades=None, bairros=None):
@@ -374,7 +421,7 @@ def listar_imobiliarias(cidades=None, bairros=None):
 
 
 def listar_bairros(cidades=None):
-    query = "SELECT DISTINCT bairro FROM imoveis WHERE bairro IS NOT NULL"
+    query = "SELECT DISTINCT bairro, cidade FROM imoveis WHERE bairro IS NOT NULL"
     params = []
     if cidades:
         placeholders = ",".join("?" * len(cidades))
@@ -385,7 +432,15 @@ def listar_bairros(cidades=None):
         rows = conn.execute(query, params).fetchall()
         # Registros históricos podem ter sido coletados com o título do
         # anúncio no campo bairro. Não ofereça esses textos como filtro.
-        return [r["bairro"] for r in rows if eh_bairro_valido(r["bairro"])]
+        bairros = {}
+        for row in rows:
+            if not nome_municipio_ibge(normalizar_cidade(row["cidade"])):
+                continue
+            bairro = normalizar_localizacao(row["bairro"], None)[0]
+            chave = chave_localidade(bairro)
+            if bairro and chave and eh_bairro_valido(bairro):
+                bairros[chave] = bairro
+        return sorted(bairros.values(), key=chave_localidade)
 
 
 def faixa_preco():

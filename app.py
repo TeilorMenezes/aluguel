@@ -2652,6 +2652,16 @@ def _preco_formatado(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _titulo_localidade(cidades):
+    if not cidades:
+        return "em todas as cidades"
+    if len(cidades) == 1:
+        return f"em {html.escape(cidades[0])}"
+    if len(cidades) == 2:
+        return f"em {html.escape(cidades[0])} e {html.escape(cidades[1])}"
+    return "em " + ", ".join(html.escape(cidade) for cidade in cidades[:-1]) + f" e {html.escape(cidades[-1])}"
+
+
 _PARAMETROS_RESULTADOS_V2 = (
     "cidade", "bairro", "tipo", "categoria", "imobiliaria", "preco_min",
     "preco_max", "sob_consulta", "ordem", "pagina",
@@ -2700,7 +2710,7 @@ def _limpar_dependentes_bairro_v2():
 def _limpar_filtros_resultados_v2():
     st.session_state.update(
         {
-            "filtro_cidade_v2": "Todas as cidades",
+            "filtro_cidades_v2": [],
             "filtro_bairros_v2": [],
             "filtro_tipo_v2": "Todos os tipos",
             "filtro_imobiliarias_v2": [],
@@ -2726,9 +2736,7 @@ def renderizar_resultados_v2():
     assinatura_url = _assinatura_parametros_v2(parametros_url)
     restaurou_url = st.session_state.get("_assinatura_url_resultados_v2") != assinatura_url
     if restaurou_url:
-        cidade_url = parametros_url["cidade"][-1] if parametros_url["cidade"] else todas_cidades
-        cidade_url = cidade_url if cidade_url in cidades_reais else todas_cidades
-        cidades_url = None if cidade_url == todas_cidades else [cidade_url]
+        cidades_url = selecoes_validas(parametros_url["cidade"], cidades_reais)
         bairros_url = db.listar_bairros(cidades=cidades_url)
         bairros_solicitados = [bairro for bairro in parametros_url["bairro"] if bairro in bairros_url]
         filtros_url = restaurar_filtros_resultados(
@@ -2746,7 +2754,7 @@ def renderizar_resultados_v2():
         )
         st.session_state.update(
             {
-                "filtro_cidade_v2": filtros_url["cidade"],
+                "filtro_cidades_v2": filtros_url["cidades"],
                 "filtro_bairros_v2": filtros_url["bairros"],
                 "filtro_tipo_v2": filtros_url["tipo"],
                 "filtro_imobiliarias_v2": filtros_url["imobiliarias"],
@@ -2759,15 +2767,16 @@ def renderizar_resultados_v2():
             }
         )
 
-    if st.session_state.get("filtro_cidade_v2") not in cidades:
-        st.session_state["filtro_cidade_v2"] = todas_cidades
-    cidade_atual = st.session_state["filtro_cidade_v2"]
-
-    titulo_localidade = (
-        "em todas as cidades"
-        if cidade_atual == todas_cidades
-        else f"em {html.escape(cidade_atual)}"
+    # Migra o estado de uma sessão aberta antes da seleção múltipla.
+    cidade_anterior = st.session_state.pop("filtro_cidade_v2", None)
+    if "filtro_cidades_v2" not in st.session_state:
+        st.session_state["filtro_cidades_v2"] = (
+            [cidade_anterior] if cidade_anterior in cidades_reais else []
+        )
+    st.session_state["filtro_cidades_v2"] = selecoes_validas(
+        st.session_state.get("filtro_cidades_v2", []), cidades_reais
     )
+    titulo_localidade = _titulo_localidade(st.session_state["filtro_cidades_v2"])
     st.markdown(
         f"""
         <section class="mv-results-hero">
@@ -2784,13 +2793,14 @@ def renderizar_resultados_v2():
     with st.container(key="mv_filter_shell"):
         linha_essencial = st.columns(4)
         with linha_essencial[0]:
-            cidade = st.selectbox(
-                "Cidade",
-                cidades,
-                key="filtro_cidade_v2",
+            cidades_selecionadas = st.multiselect(
+                "Cidades",
+                cidades_reais,
+                key="filtro_cidades_v2",
+                placeholder="Todas as cidades",
                 on_change=_limpar_dependentes_cidade_v2,
             )
-        cidades_consulta = None if cidade == todas_cidades else [cidade]
+        cidades_consulta = cidades_selecionadas or None
         bairros = db.listar_bairros(cidades=cidades_consulta)
         st.session_state["filtro_bairros_v2"] = selecoes_validas(
             st.session_state.get("filtro_bairros_v2", []), bairros
@@ -2883,12 +2893,12 @@ def renderizar_resultados_v2():
         renderizar_footer_v2()
         return
 
-    st.session_state["cidade_resultados"] = cidade
+    st.session_state["cidade_resultados"] = cidades_selecionadas[0] if len(cidades_selecionadas) == 1 else todas_cidades
     st.session_state["tipo_resultados"] = tipo
-    titulo_localidade = "em todas as cidades" if cidade == todas_cidades else f"em {html.escape(cidade)}"
+    titulo_localidade = _titulo_localidade(cidades_selecionadas)
     tipos_consulta = None if tipo == todos_tipos else [tipo]
     assinatura_paginacao = (
-        cidade,
+        tuple(cidades_selecionadas),
         tuple(bairros_selecionados),
         tipo,
         tuple(imobiliarias_selecionadas),
@@ -2921,7 +2931,7 @@ def renderizar_resultados_v2():
     st.session_state["pagina_resultados_v2"] = pagina_atual
     _sincronizar_url_resultados_v2(
         {
-            "cidade": cidade,
+            "cidades": cidades_selecionadas,
             "bairros": bairros_selecionados,
             "tipo": tipo,
             "imobiliarias": imobiliarias_selecionadas,
@@ -2943,8 +2953,8 @@ def renderizar_resultados_v2():
     primeiro_item = (pagina_atual - 1) * itens_por_pagina + 1 if total_imoveis else 0
     ultimo_item = min(pagina_atual * itens_por_pagina, total_imoveis)
     chips = []
-    if cidade != todas_cidades:
-        chips.append(f"Cidade: {cidade}")
+    if cidades_selecionadas:
+        chips.append(f"Cidades: {', '.join(cidades_selecionadas)}")
     if tipo != todos_tipos:
         chips.append(f"Tipo: {tipo}")
     chips.extend(f"Bairro: {bairro}" for bairro in bairros_selecionados)
@@ -3004,7 +3014,7 @@ def renderizar_resultados_v2():
                 with colunas[indice % 3]:
                     titulo = html.escape(imovel["titulo"] or imovel["imobiliaria"])
                     bairro = html.escape(imovel["bairro"] or "Bairro não informado")
-                    cidade_item = html.escape(imovel["cidade"] or cidade)
+                    cidade_item = html.escape(imovel["cidade"] or "Cidade não informada")
                     tipo_item = html.escape(imovel.get("tipo") or "Imóvel")
                     imobiliaria = html.escape(imovel["imobiliaria"])
                     thumb = html.escape(imovel["thumbnail_url"] or "", quote=True)
