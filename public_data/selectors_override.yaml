@@ -86,7 +86,7 @@ sites:
       tipo: botao
       botao_selector: a[aria-label*='next' i]
       max_cliques: 50
-      espera_apos_clique_ms: 5000
+      espera_apos_clique_ms: 1600
       parar_sem_novos: 2
       aprendida_automaticamente: true
       apis_observadas:
