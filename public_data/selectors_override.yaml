@@ -313,3 +313,21 @@ sites:
     aprendido_em: '2026-08-19T17:41:28-03:00'
     filtros: {}
     estrategia_atualizada_em: '2026-08-21T12:37:02-03:00'
+  imoveisgodinho:
+    paginacao:
+      tipo: botao
+      botao_selector: button.btn.btn-md.btn-disabled-1
+      max_cliques: 50
+      espera_apos_clique_ms: 1600
+      parar_sem_novos: 2
+      aprendida_automaticamente: true
+    estrategia_atualizada_em: '2026-08-23T15:54:07-03:00'
+  pontualimobiliaria:
+    paginacao:
+      tipo: botao
+      botao_selector: button.btn.btn-md.btn-disabled-2
+      max_cliques: 50
+      espera_apos_clique_ms: 1600
+      parar_sem_novos: 2
+      aprendida_automaticamente: true
+    estrategia_atualizada_em: '2026-08-23T15:54:07-03:00'

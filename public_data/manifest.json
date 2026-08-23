@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "created_at": "2026-08-22T13:45:01-03:00",
+  "created_at": "2026-08-23T17:46:31-03:00",
   "mode": "complete",
   "selected_site_keys": [],
-  "total": 1179,
+  "total": 1178,
   "agencies": {
     "allex": 102,
-    "catedral": 107,
+    "catedral": 110,
     "certa": 12,
     "cirsa": 108,
     "correta": 7,
@@ -18,11 +18,11 @@
     "helenaimoveis": 13,
     "imobiliariajj": 12,
     "jfcorretor": 1,
+    "jfimobiliaria": 1,
     "lopescontagem": 23,
     "me_imobiliaria": 26,
     "mercantilimoveis": 81,
-    "mgcorretordeimoveis": 12,
-    "minas_caixa": 20,
+    "minas_caixa": 27,
     "niltoncorretordeimoveis": 16,
     "oliveira": 100,
     "portal_imoveis": 152,
@@ -31,9 +31,9 @@
   },
   "quality": {
     "titulo": 1.0,
-    "preco": 0.969,
+    "preco": 0.967,
     "imagem": 0.98,
     "link": 1.0
   },
-  "sha256": "67e59ad45cb7b7e07c4ebc255ad388cf4ee336fc9eeb39f5a3d9436d3440d0ff"
+  "sha256": "bbc4642b2fdd016382e05869c52b0503320fdd2bfef32ef92169ee0dc6e5f26b"
 }
