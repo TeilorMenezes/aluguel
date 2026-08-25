@@ -1,23 +1,21 @@
 {
   "schema_version": 1,
-  "created_at": "2026-08-24T10:54:05-03:00",
+  "created_at": "2026-08-25T11:40:00-03:00",
   "mode": "complete",
   "selected_site_keys": [],
-  "total": 1189,
+  "total": 1175,
   "agencies": {
     "allex": 102,
-    "catedral": 111,
-    "certa": 12,
-    "cirsa": 109,
+    "catedral": 109,
+    "cirsa": 111,
     "correta": 7,
     "deztop": 14,
-    "diferencial": 260,
-    "epifanioimoveis": 11,
+    "diferencial": 264,
+    "epifanioimoveis": 12,
     "estadodeminas": 2,
     "ferreira": 23,
     "helenaimoveis": 13,
     "imobiliariajj": 12,
-    "jfcorretor": 1,
     "jfimobiliaria": 1,
     "lopescontagem": 23,
     "me_imobiliaria": 25,
@@ -25,16 +23,16 @@
     "mgcorretordeimoveis": 12,
     "minas_caixa": 27,
     "niltoncorretordeimoveis": 16,
-    "oliveira": 100,
-    "portal_imoveis": 152,
+    "oliveira": 95,
+    "portal_imoveis": 150,
     "portal_timoteo": 9,
-    "realize": 66
+    "realize": 67
   },
   "quality": {
     "titulo": 1.0,
-    "preco": 0.967,
-    "imagem": 0.981,
+    "preco": 0.973,
+    "imagem": 0.98,
     "link": 1.0
   },
-  "sha256": "9401693fb0479b937cd2ac6644dfdc7646fe8ca3ba69d099d7f28154050ddde2"
+  "sha256": "8363379f990dfa9d9c003bd37ed74bf96e4b14926d2990dbcb1f9d681060638a"
 }
