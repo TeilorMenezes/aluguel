@@ -331,3 +331,11 @@ sites:
       parar_sem_novos: 2
       aprendida_automaticamente: true
     estrategia_atualizada_em: '2026-08-23T15:54:07-03:00'
+  netimoveis:
+    filtros:
+      tipo: links
+      parametro: tipoUrl
+      urls:
+      - https://www.netimoveis.com/imovel/locacao-loja-minas-gerais-belo-horizonte-dom-joaquim/1173782?tipoUrl=loja&transacao=locacao&localizacao=minas-gerais-belo-horizonte-dom-joaquim
+      - https://www.netimoveis.com/imovel/locacao-sala-minas-gerais-belo-horizonte-dom-joaquim/1170773?tipoUrl=sala&transacao=locacao&localizacao=minas-gerais-belo-horizonte-dom-joaquim
+    estrategia_atualizada_em: '2026-09-01T10:44:58-03:00'
