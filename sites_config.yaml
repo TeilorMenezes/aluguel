@@ -566,6 +566,381 @@ sites:
       preco: div.rh_prop_card__priceLabel
       thumbnail: img.attachment-modern-property-child-slider.size-modern-property-child-slider.wp-post-image
       thumbnail_attr: src
+  total_imobiliaria:
+    nome: Total Imobiliária
+    logo: ''
+    base_url: https://www.totalimob.com.br
+    listagem_url: https://www.totalimob.com.br/imobiliaria/locacao/imoveis
+    cidade_padrao: Coronel Fabriciano
+    finalidade: aluguel
+    link_obrigatorio: true
+    espera_seletor: article.card
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: article.card
+      link: .c49-property-card_photo a[href*='/imoveis/locacao-']
+      titulo: h2.c49-property-card_title
+      preco: .c49-property-card_rent-price
+      bairro: .c49-property-card_address
+      tipo: .c49-property-card_type
+      status: .c49-property-card_rent-price
+      thumbnail: .c49-property-card_photo img
+      thumbnail_attr: src
+    endereco_regex: '^(?P<bairro>.+?),\s*(?P<cidade>.+?)(?:\s*-\s*MG)?$'
+  carneiro_imoveis:
+    nome: Carneiro Imóveis
+    logo: ''
+    base_url: https://www.carneiroimob.com.br
+    listagem_url: https://www.carneiroimob.com.br/imobiliaria/locacao/imoveis
+    cidade_padrao: Coronel Fabriciano
+    finalidade: aluguel
+    link_obrigatorio: true
+    espera_seletor: article.card
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: article.card
+      link: .c49-property-card_photo a[href*='/imoveis/locacao-']
+      titulo: h2.c49-property-card_title
+      preco: .c49-property-card_rent-price
+      bairro: .c49-property-card_address
+      tipo: .c49-property-card_type
+      status: .c49-property-card_rent-price
+      thumbnail: .c49-property-card_photo img
+      thumbnail_attr: src
+    endereco_regex: '^(?P<bairro>.+?),\s*(?P<cidade>.+?)(?:\s*-\s*MG)?$'
+  porta_aberta_imoveis:
+    nome: Porta Aberta Imóveis
+    logo: ''
+    base_url: https://www.portaabertaimoveis.com.br
+    listagem_url: https://www.portaabertaimoveis.com.br/imobiliaria/locacao/imoveis
+    cidade_padrao: Ipatinga
+    finalidade: aluguel
+    link_obrigatorio: true
+    espera_seletor: article.card
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: article.card
+      link: .c49-property-card_photo a[href*='/imoveis/locacao-']
+      titulo: h2.c49-property-card_title
+      preco: .c49-property-card_rent-price
+      bairro: .c49-property-card_address
+      tipo: .c49-property-card_type
+      status: .c49-property-card_rent-price
+      thumbnail: .c49-property-card_photo img
+      thumbnail_attr: src
+    endereco_regex: '^(?P<bairro>.+?),\s*(?P<cidade>.+?)(?:\s*-\s*MG)?$'
+  jhessica_marcelo_imoveis:
+    nome: Jhessica e Marcelo Imóveis
+    logo: ''
+    base_url: https://www.jhessicaemarceloimoveis.com.br
+    listagem_url: https://www.jhessicaemarceloimoveis.com.br/imobiliaria/locacao/imoveis
+    cidade_padrao: Coronel Fabriciano
+    finalidade: aluguel
+    link_obrigatorio: true
+    espera_seletor: article.card
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: article.card
+      link: .c49-property-card_photo a[href*='/imoveis/locacao-']
+      titulo: h2.c49-property-card_title
+      preco: .c49-property-card_rent-price
+      bairro: .c49-property-card_address
+      tipo: .c49-property-card_type
+      status: .c49-property-card_rent-price
+      thumbnail: .c49-property-card_photo img
+      thumbnail_attr: src
+    endereco_regex: '^(?P<bairro>.+?),\s*(?P<cidade>.+?)(?:\s*-\s*MG)?$'
+  unicom_imoveis:
+    nome: UNICOM Imóveis
+    logo: ''
+    base_url: https://www.unicom.imb.br
+    listagem_url: https://www.unicom.imb.br/imovel/locacao
+    cidade_padrao: Ipatinga
+    finalidade: aluguel
+    link_obrigatorio: true
+    espera_seletor: div.imovelcard
+    paginacao:
+      tipo: url
+      url_template: https://www.unicom.imb.br/imovel/locacao/?pag={pagina}
+      pagina_inicial: 1
+      proxima_pagina: 2
+      max_paginas: 20
+    seletores:
+      card: div.imovelcard
+      link: a.col.imovelcard__img
+      titulo: p.imovelcard__info__ref
+      preco: p.imovelcard__valor__valor
+      bairro: h2.imovelcard__info__local
+      thumbnail: a.imovelcard__img img
+      thumbnail_attr: src
+    titulo_regex: '^Ref:\s*.*?\s*-\s*(?P<tipo>.+)$'
+    endereco_regex: '^(?P<bairro>.+?),\s*(?P<cidade>.+?)\s*/\s*MG$'
+  druwe_imoveis:
+    nome: Druwe Imóveis
+    logo: ''
+    base_url: https://www.druweimoveis.com.br
+    listagem_url: https://www.druweimoveis.com.br/imoveis/para-alugar
+    cidade_padrao: Ipatinga
+    finalidade: aluguel
+    espera_seletor: li.full
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: li.full
+      link: a[href*='/imovel/']
+      titulo: h3.tit
+      preco: span.price
+      bairro: span.location
+      thumbnail: figure img
+      thumbnail_attr: src
+    titulo_regex: '^(?P<tipo>.+?)\s+para\s+alugar'
+    endereco_regex: '^(?P<bairro>.+?),\s*(?P<cidade>.+?)(?:/MG)?$'
+  vasconcelos_imoveis:
+    nome: Vasconcelos Imóveis
+    logo: ''
+    base_url: https://www.vasconcelosimoveisgv.com
+    listagem_url: https://www.vasconcelosimoveisgv.com/imovel/locacao
+    cidade_padrao: Governador Valadares
+    finalidade: aluguel
+    link_obrigatorio: true
+    espera_seletor: div.imovelcard
+    paginacao:
+      tipo: url
+      url_template: https://www.vasconcelosimoveisgv.com/imovel/locacao/?pag={pagina}
+      pagina_inicial: 1
+      proxima_pagina: 2
+      max_paginas: 20
+    seletores:
+      card: div.imovelcard
+      link: a.col.imovelcard__img
+      titulo: p.imovelcard__info__ref
+      preco: p.imovelcard__valor__valor
+      bairro: h2.imovelcard__info__local
+      thumbnail: a.imovelcard__img img
+      thumbnail_attr: src
+    titulo_regex: '^Ref:\s*.*?\s*-\s*(?P<tipo>.+)$'
+    endereco_regex: '^(?P<bairro>.+?),\s*(?P<cidade>.+?)\s*/\s*MG$'
+  glaucia_veras:
+    nome: Gláucia Veras Soluções Imobiliárias
+    logo: ''
+    base_url: https://www.glauciaveras.com.br
+    listagem_url: https://www.glauciaveras.com.br/buscar?availability=rent&order=neighborhood
+    cidade_padrao: Governador Valadares
+    coleta_ativa: false
+    motivo_quarentena: "Teste real encontrou bairro confiável em apenas 18% dos 11 cards; requer seletor ou detalhe regional validado."
+    finalidade: aluguel
+    espera_seletor: mat-card.mdc-card
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: mat-card.mdc-card
+      link: a[href*='/imovel/']
+      titulo: h3.property-title
+      preco: h3.h2
+      thumbnail: img.swiper-image
+      thumbnail_attr: src
+    titulo_regex: '^(?P<tipo>.+?)\s+(?:para\s+locação\s+)?em\s+(?P<bairro>.+?)(?:\s*[-,]\s*(?:Governador Valadares|Gov\.?\s+Valadares)|\s+por\s+R\$)'
+  solucao_imobiliaria:
+    nome: Solução Imobiliária
+    logo: ''
+    base_url: https://www.solucaoimobiliaria.com
+    listagem_url: https://www.solucaoimobiliaria.com/buscar?availability=rent&order=neighborhood
+    cidade_padrao: Governador Valadares
+    finalidade: aluguel
+    espera_seletor: mat-card.mdc-card
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: mat-card.mdc-card
+      link: a[href*='/imovel/']
+      titulo: h3.property-title
+      preco: h3.h2
+      thumbnail: img.swiper-image
+      thumbnail_attr: src
+    titulo_regex: '^(?P<tipo>.+?)\s+em\s+(?P<bairro>.+?)\s*-\s*(?P<cidade>Governador Valadares)'
+  seguranca_imoveis:
+    nome: Segurança Imóveis
+    logo: ''
+    base_url: https://segurancaimoveisgv.com.br
+    listagem_url: https://segurancaimoveisgv.com.br/aluguel/residencial/governador-valadares/
+    cidade_padrao: Governador Valadares
+    finalidade: aluguel
+    espera_seletor: div.imovel-box-single
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: div.imovel-box-single
+      link: a.btn[href*='/imovel/']
+      titulo: h2.titulo-grid
+      preco: span.thumb-price
+      bairro: .titulo-anuncio h3
+      thumbnail: div.foto-imovel
+      thumbnail_attr: style
+    titulo_regex: '^(?P<tipo>.+?)\s+(?P<bairro>.+?)(?:\s+\d[\d.,]*m²)?$'
+    endereco_regex: '^(?P<bairro>.+?)\s*-\s*(?P<cidade>.+?)\s*/\s*Mg$'
+  lins_imoveis:
+    nome: A Lins Imóveis
+    logo: ''
+    base_url: https://www.linsimoveisgv.com.br
+    listagem_url: https://www.linsimoveisgv.com.br/im%C3%B3vel-estado/locacao/
+    cidade_padrao: Governador Valadares
+    finalidade: aluguel
+    espera_seletor: div.property-item-wrapper
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: div.property-item-wrapper
+      link: h4 a[href*='/imóvel/']
+      titulo: h4
+      preco: h5.price
+      thumbnail: figure img
+      thumbnail_attr: data-lazy-src
+    titulo_regex: '^(?P<tipo>\S+)\s+(?P<bairro>.+)$'
+  bom_negocio_gv:
+    nome: Bom Negócio Imóveis
+    logo: ''
+    base_url: https://www.bomnegocioimoveisgv.com.br
+    listagem_url: https://www.bomnegocioimoveisgv.com.br/filtro/locacao/todos/todas/todos/todos----todos/todos----todos/0-10000000/todos/1
+    cidade_padrao: Governador Valadares
+    finalidade: aluguel
+    espera_seletor: div.box-destaque-imovel
+    paginacao:
+      tipo: url
+      url_template: https://www.bomnegocioimoveisgv.com.br/filtro/locacao/todos/todas/todos/todos----todos/todos----todos/0-10000000/todos/{pagina}
+      pagina_inicial: 1
+      proxima_pagina: 2
+      max_paginas: 20
+    seletores:
+      card: div.box-destaque-imovel
+      link: a[href*='/imovel/locacao/']
+      titulo: h3.t-imoveis
+      preco: div.box-valor-produto
+      bairro: div.local-imovel
+      thumbnail: img.image-57
+      thumbnail_attr: src
+    titulo_regex: '^(?P<tipo>.+?)\s+para\s+locação'
+    endereco_regex: '^(?P<bairro>.+?)\s*/\s*(?P<cidade>.+?)\s*-\s*MG$'
+  imoveis_carvalho:
+    nome: Imóveis Carvalho
+    logo: ''
+    base_url: https://imoveiscarvalho.com.br
+    listagem_url: https://imoveiscarvalho.com.br/status/aluguel/
+    cidade_padrao: Governador Valadares
+    finalidade: aluguel
+    espera_seletor: div.item-listing-wrap
+    paginacao:
+      tipo: url
+      pagina_inicial: 1
+      max_paginas: 20
+    seletores:
+      card: div.item-listing-wrap
+      link: a.listing-featured-thumb[href*='/property/']
+      titulo: h2.item-title
+      preco: div.item-v5-price
+      tipo: div.item-v5-type
+      thumbnail: img.wp-post-image
+      thumbnail_attr: src
+    titulo_regex: '^(?P<tipo>[^–-]+?)\s*[–-]\s*(?P<bairro>[^–-]+)'
+  tataia_imoveis:
+    nome: Tataia Imóveis
+    logo: ''
+    base_url: https://tataiaimoveis.com.br
+    listagem_url: https://tataiaimoveis.com.br/pag.php?pag=pesq_propriedade&pja=true&pbai=0&pcat=0&ptip=A&pagina=1
+    cidade_padrao: Aimorés
+    coleta_ativa: false
+    motivo_quarentena: "Teste real de 15 cards encontrou 0% de bairro e 20% de cidade; requer estratégia de detalhe validada."
+    finalidade: aluguel
+    espera_seletor: div.panel
+    paginacao:
+      tipo: url
+      url_template: https://tataiaimoveis.com.br/pag.php?pag=pesq_propriedade&pja=true&pbai=0&pcat=0&ptip=A&pagina={pagina}
+      pagina_inicial: 1
+      proxima_pagina: 2
+      max_paginas: 20
+    seletores:
+      card: div.panel
+      link: .panel-image a[href*='pag=propriedade']
+      titulo: .prop_feat p.area
+      preco: p.price
+      tipo: .prop_feat p.area
+      thumbnail: .panel-image img
+      thumbnail_attr: src
+  geferson_gomes_imoveis:
+    nome: Geferson Gomes Imóveis
+    logo: ''
+    base_url: https://gefersongomesimoveis.com.br
+    listagem_url: https://gefersongomesimoveis.com.br/imoveis/aluguel
+    cidade_padrao: Mantena
+    finalidade: aluguel
+    espera_seletor: div.LI_Imovel
+    paginacao:
+      tipo: nenhuma
+    seletores:
+      card: div.LI_Imovel
+      link: a.ImovelLinkClick[href]
+      titulo: a.Title
+      preco: .ImovelValor .ValorMoeda
+      bairro: span.Bairro
+      tipo: .Categoria
+      thumbnail: img.BannerImage
+      thumbnail_attr: src
+  guerrinha_imoveis:
+    nome: Guerrinha Imóveis
+    logo: ''
+    base_url: https://www.guerrinhaimoveis.com.br
+    listagem_url: https://www.guerrinhaimoveis.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina={pagina}
+    cidade_padrao: Ipatinga
+    finalidade: aluguel
+    espera_seletor: div.property
+    paginacao:
+      tipo: url
+      pagina_inicial: 1
+      max_paginas: 20
+    seletores:
+      card: div.property
+      link: a[href*='/imovel/']
+      titulo: h1.title
+      preco: div.property-price
+      thumbnail: img.hp-1
+      thumbnail_attr: src
+    titulo_regex: '^(?P<tipo>.+?)\s*\|\s*(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$'
+  predileta_imoveis:
+    nome: Imobiliária Predileta
+    logo: ''
+    base_url: https://www.imobiliariapredileta.com.br
+    listagem_url: https://www.imobiliariapredileta.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina={pagina}
+    cidade_padrao: Governador Valadares
+    finalidade: aluguel
+    espera_seletor: div.property
+    paginacao:
+      tipo: url
+      pagina_inicial: 1
+      max_paginas: 20
+    seletores:
+      card: div.property
+      link: a[href*='/imovel/']
+      titulo: h1.title
+      preco: div.property-price
+      thumbnail: img.hp-1
+      thumbnail_attr: src
+    titulo_regex: '^(?P<tipo>.+?)\s*\|\s*(?P<bairro>.+?)\s*-\s*(?P<cidade>.+)$'
+  betel_imoveis:
+    nome: Betel Imóveis
+    logo: ''
+    base_url: https://www.betelimoveis.com
+    listagem_url: https://www.betelimoveis.com/aluguel
+    cidade_padrao: Governador Valadares
+    finalidade: aluguel
+    integracao: imoview_api
+    api_url: https://www.betelimoveis.com/retornar-imoveis-disponiveis
+    paginacao:
+      tipo: api
+      max_paginas: 20
+    seletores: {}
 agendamento:
   intervalo_horas: 6
   horario_fixo: 09:10
