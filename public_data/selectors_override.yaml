@@ -135,7 +135,10 @@ sites:
       link: a
       titulo: span.ImovelCardInfo_colorOfTitleCondominium__IfTu_.ImovelCardInfo_ellipsisOneLine__ryU_Q.d-flex.flex-row
       preco: h3.d-flex.flex-column.justify-content-center.flex-grow-1
+      bairro: p.ImovelCardInfo_address__Kq1eI
       thumbnail: img
+    preferir_localizacao_titulo: true
+    titulo_regex: ^(?P<tipo>.+?)\s+(?:à\s+venda\s+ou\s+para\s+alugar|para\s+alugar|à\s+venda)\s+em\s+(?P<bairro>.+)$
     aprendido_em: '2026-08-11T16:11:30-03:00'
   mercantilimoveis:
     nome: Mercantil Imóveis
@@ -164,8 +167,8 @@ sites:
   attria:
     paginacao:
       tipo: api_aprendida
-      url_template: https://www.attria.com.br/aluguel/mg?page={pagina}&counter=true
-      pagina_inicial: 2
+      url_template: https://www.attria.com.br/aluguel/mg?page={pagina}
+      pagina_inicial: 1
       incremento: 1
       max_paginas: 100
       parar_sem_novos: 2
@@ -196,7 +199,7 @@ sites:
     paginacao:
       tipo: botao
       botao_selector: a.\!max-w-full.\!w-full.btn-btn-1.flex
-      max_cliques: 50
+      max_cliques: null
       espera_apos_clique_ms: 1600
       parar_sem_novos: 2
       aprendida_automaticamente: true
@@ -287,55 +290,14 @@ sites:
       - value: tres-coracoes
         label: TRES CORACOES
       max_opcoes: 60
+      espera_ms: 600
     estrategia_atualizada_em: '2026-08-12T16:17:39-03:00'
-  meimobiliaria:
-    nome: meimobiliaria.com.br
-    base_url: https://www.meimobiliaria.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina=1
-    cidade_padrao: Ipatinga
-    paginacao:
-      tipo: botao
-      botao_selector: a[aria-label*='next' i]
-      max_cliques: 50
-      espera_apos_clique_ms: 1600
-      parar_sem_novos: 2
-      aprendida_automaticamente: true
-      apis_observadas:
-      - https://www.meimobiliaria.com.br/imoveis/ajax/
-    listagem_url: https://www.meimobiliaria.com.br/aluguel/imoveis/todas-as-cidades/todos-os-bairros/0-quartos/0-suite-ou-mais/0-vaga/0-banheiro-ou-mais/todos-os-condominios?valorminimo=0&valormaximo=0&pagina=1
-    espera_seletor: div.property
-    seletores:
-      card: div.property
-      link: a
-      titulo: h2.title
-      preco: div.property-price
-      thumbnail: img.hp-1
-      thumbnail_attr: src
-    aprendido_em: '2026-08-19T17:41:28-03:00'
-    filtros: {}
-    estrategia_atualizada_em: '2026-08-21T12:37:02-03:00'
   imoveisgodinho:
     paginacao:
       tipo: botao
       botao_selector: button.btn.btn-md.btn-disabled-1
-      max_cliques: 50
+      max_cliques: null
       espera_apos_clique_ms: 1600
       parar_sem_novos: 2
       aprendida_automaticamente: true
     estrategia_atualizada_em: '2026-08-23T15:54:07-03:00'
-  pontualimobiliaria:
-    paginacao:
-      tipo: botao
-      botao_selector: button.btn.btn-md.btn-disabled-2
-      max_cliques: 50
-      espera_apos_clique_ms: 1600
-      parar_sem_novos: 2
-      aprendida_automaticamente: true
-    estrategia_atualizada_em: '2026-08-23T15:54:07-03:00'
-  netimoveis:
-    filtros:
-      tipo: links
-      parametro: tipoUrl
-      urls:
-      - https://www.netimoveis.com/imovel/locacao-loja-minas-gerais-belo-horizonte-dom-joaquim/1173782?tipoUrl=loja&transacao=locacao&localizacao=minas-gerais-belo-horizonte-dom-joaquim
-      - https://www.netimoveis.com/imovel/locacao-sala-minas-gerais-belo-horizonte-dom-joaquim/1170773?tipoUrl=sala&transacao=locacao&localizacao=minas-gerais-belo-horizonte-dom-joaquim
-    estrategia_atualizada_em: '2026-09-01T10:44:58-03:00'
