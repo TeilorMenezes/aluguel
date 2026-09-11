@@ -82,6 +82,23 @@ def _primeira_url_srcset(value):
     return max(candidatos)[2] if candidatos else None
 
 
+def _eh_placeholder_imagem(url):
+    """Identifica arquivos de espera, não fotos de anúncios."""
+    if not url:
+        return False
+    partes = urlsplit(str(url))
+    host = (partes.hostname or "").casefold()
+    dominios_placeholder = ("placeholder.com", "placehold.co", "placehold.it")
+    if any(host == dominio or host.endswith(f".{dominio}") for dominio in dominios_placeholder):
+        return True
+    nome = partes.path.rsplit("/", 1)[-1].rsplit(".", 1)[0].casefold()
+    return bool(re.search(
+        r"(?:^|[-_])(?:loading[-_]?lazy|lazy[-_]?loading|placeholder|spinner|loader|"
+        r"image[-_]?not[-_]?found|no[-_]?image|sem[-_]?foto)(?:[-_]|$)",
+        nome,
+    ))
+
+
 def _url_imagem_elemento(elemento, atributo_preferido="src"):
     """Extrai imagem de img/picture ou de um contêiner com fundo CSS."""
     if not elemento:
@@ -110,14 +127,14 @@ def _url_imagem_elemento(elemento, atributo_preferido="src"):
                 continue
             if atributo.endswith("srcset"):
                 valor = _primeira_url_srcset(valor)
-            if valor:
+            if valor and not _eh_placeholder_imagem(valor):
                 return valor.strip()
         try:
             style = candidato.get_attribute("style") or ""
         except Exception:
             style = ""
         imagem_css = _extrair_url_css(style)
-        if imagem_css:
+        if imagem_css and not _eh_placeholder_imagem(imagem_css):
             return imagem_css
     return None
 
@@ -139,20 +156,21 @@ def _cidade_da_url(url):
         not re.fullmatch(r"[A-Za-zÀ-ÿ ]{3,60}", candidato)
         or candidato.casefold() in {
             "aluguel", "alugar", "imoveis", "imóveis", "pesquisa imoveis",
-            "pesquisa imóveis", "busca", "resultados", "mg", "br",
+            "pesquisa imóveis", "busca", "buscar", "resultados", "mg", "br",
         }
     ):
         return None
     return normalizar_cidade(candidato)
 
 
-def _link_do_imovel(card, seletor_preferido):
+def _link_do_imovel(card, seletor_preferido, exigir_preferido=False):
     """Escolhe um link de anúncio, ignorando âncoras que abrem somente fotos."""
     candidatos = []
     preferido = _selecionar(card, seletor_preferido)
     if preferido:
         candidatos.append(preferido)
-    candidatos.extend(card.query_selector_all("a[href]"))
+    if not exigir_preferido:
+        candidatos.extend(card.query_selector_all("a[href]"))
     vistos = set()
     for link in candidatos:
         href = link.get_attribute("href")
@@ -815,7 +833,11 @@ def _extrair_cards(page, cfg_site: dict):
 
     for card in cards:
         try:
-            link_el = _link_do_imovel(card, seletores.get("link"))
+            link_el = _link_do_imovel(
+                card,
+                seletores.get("link"),
+                exigir_preferido=cfg_site.get("link_obrigatorio", False),
+            )
             href = link_el.get_attribute("href") if link_el else None
             url_imovel = urljoin(cfg_site["base_url"], href) if href else None
             if not url_imovel or not _mesma_fonte(url_imovel, cfg_site.get("base_url")):
@@ -1556,7 +1578,9 @@ def _raspar_com_paginacao_url(playwright, cfg_site: dict, pag_cfg: dict, headles
                 partes = urlsplit(listagem_url)
                 caminho = partes.path.rstrip("/") + f"/page/{pagina}/"
                 url_pagina = urlunsplit((partes.scheme, partes.netloc, caminho, partes.query, partes.fragment))
-            page.goto(url_pagina, timeout=45000, wait_until="networkidle")
+            # A presença dos cards, e não o silêncio de analytics/long-polling,
+            # é o sinal relevante de carregamento destes catálogos.
+            page.goto(url_pagina, timeout=45000, wait_until="domcontentloaded")
 
             espera = cfg_site.get("espera_seletor")
             if espera:
@@ -1654,7 +1678,8 @@ def _raspar_site(playwright, cfg_site: dict, headless=True):
     browser = playwright.chromium.launch(headless=headless)
     page = browser.new_page(user_agent="Mozilla/5.0 (compatible; ImoveisScraperApp/1.0)")
     try:
-        page.goto(cfg_site["listagem_url"], timeout=45000, wait_until="networkidle")
+        # Alguns portais mantêm analytics ou long-polling ativos indefinidamente.
+        page.goto(cfg_site["listagem_url"], timeout=45000, wait_until="domcontentloaded")
         espera = cfg_site.get("espera_seletor")
         if espera:
             try:
