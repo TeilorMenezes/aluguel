@@ -3175,6 +3175,7 @@ def renderizar_resultados_v2():
                     limpar_filtros = st.form_submit_button(
                         "Limpar",
                         key="limpar_rascunho_resultados_v2",
+                        on_click=_limpar_rascunho_filtros_resultados_v2,
                         use_container_width=True,
                     )
                 with aplicar_coluna:
@@ -3185,9 +3186,7 @@ def renderizar_resultados_v2():
                         use_container_width=True,
                     )
 
-        if limpar_filtros:
-            _limpar_rascunho_filtros_resultados_v2()
-        elif aplicar_filtros:
+        if aplicar_filtros:
             _aplicar_rascunho_filtros_resultados_v2()
         # O envio do formulário atualiza os widgets antes desta leitura. Em
         # seguida, reconstruímos os estados para a consulta e para a URL.
