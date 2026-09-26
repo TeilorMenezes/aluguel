@@ -142,6 +142,9 @@ def init_public_db():
 
 def _normalizar_registros_existentes(conn):
     """Migração idempotente dos valores antigos que alimentam os filtros."""
+    # Sentinelas como R$ 0,00 e a antiga leitura de "1,000" como R$ 1,00
+    # não podem aparecer como os menores aluguéis do catálogo.
+    conn.execute("UPDATE imoveis SET preco = NULL WHERE preco IS NOT NULL AND preco < 10")
     linhas = conn.execute("SELECT id, bairro, cidade, imobiliaria FROM imoveis").fetchall()
     for linha in linhas:
         bairro, cidade = normalizar_localizacao(linha["bairro"], linha["cidade"])
@@ -211,6 +214,11 @@ def remover_duplicata_diferencial():
 def upsert_imovel(item: dict):
     """Insere ou atualiza um imóvel (chave única = url)."""
     item = dict(item)
+    try:
+        if item.get("preco") is not None and float(item["preco"]) < 10:
+            item["preco"] = None
+    except (TypeError, ValueError):
+        item["preco"] = None
     item["bairro"], item["cidade"] = normalizar_localizacao(item.get("bairro"), item.get("cidade"))
     item["cidade"] = nome_municipio_ibge(item["cidade"]) or item["cidade"]
     item["imobiliaria"] = normalizar_imobiliaria(item.get("imobiliaria")) or item["imobiliaria"]
@@ -286,11 +294,11 @@ def _filtros_imoveis(
     if filtros_preco:
         expressao_preco = " AND ".join(filtros_preco)
         if incluir_sem_preco:
-            query += f" AND (preco IS NULL OR ({expressao_preco}))"
+            query += f" AND (preco IS NULL OR preco <= 0 OR ({expressao_preco}))"
         else:
-            query += f" AND {expressao_preco}"
+            query += f" AND preco > 0 AND {expressao_preco}"
     elif not incluir_sem_preco:
-        query += " AND preco IS NOT NULL"
+        query += " AND preco > 0"
     if bairros:
         placeholders = ",".join("?" * len(bairros))
         query += f" AND bairro IN ({placeholders})"
@@ -358,8 +366,8 @@ def listar_imoveis(
 
     ordens = {
         "recentes": "coletado_em DESC, id DESC",
-        "preco_asc": "preco IS NULL, preco ASC, id DESC",
-        "preco_desc": "preco IS NULL, preco DESC, id DESC",
+        "preco_asc": "preco IS NULL OR preco <= 0, preco ASC, id DESC",
+        "preco_desc": "preco IS NULL OR preco <= 0, preco DESC, id DESC",
     }
     query += f" ORDER BY {ordens.get(ordenar_por, ordens['recentes'])}"
     if limite is not None:
@@ -446,7 +454,7 @@ def listar_bairros(cidades=None):
 def faixa_preco():
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT MIN(preco) as min_p, MAX(preco) as max_p FROM imoveis WHERE preco IS NOT NULL"
+            "SELECT MIN(preco) as min_p, MAX(preco) as max_p FROM imoveis WHERE preco > 0"
         ).fetchone()
         return (row["min_p"] or 0, row["max_p"] or 0)
 
