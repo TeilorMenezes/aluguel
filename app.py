@@ -2452,7 +2452,18 @@ st.markdown(
             padding: .65rem;
         }
         .st-key-mv_filter_apply [data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap;
+            flex-direction: column-reverse;
+            align-items: stretch;
+            gap: .4rem;
+        }
+        .st-key-mv_filter_apply [data-testid="column"] {
+            width: 100% !important;
+            flex: 0 0 auto !important;
+        }
+        .st-key-mv_filter_apply button {
+            min-height: 2.55rem;
+            padding: .35rem .7rem;
+            font-size: .9rem;
         }
     }
     </style>
