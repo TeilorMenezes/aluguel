@@ -3040,147 +3040,148 @@ def renderizar_resultados_v2():
     )
 
     with st.container(key="mv_filter_shell"):
-        linha_essencial = st.columns(5 if st.session_state["rascunho_cidades_v2"] else 4)
-        with linha_essencial[0]:
-            cidades_selecionadas = st.multiselect(
-                "Cidades",
-                cidades_reais,
-                key="rascunho_cidades_v2",
-                placeholder="Todas as cidades",
-                on_change=_limpar_dependentes_cidade_v2,
-            )
-        cidades_consulta = cidades_selecionadas or None
-        bairros = db.listar_bairros(cidades=cidades_consulta)
-        st.session_state["rascunho_bairros_v2"] = selecoes_validas(
-            st.session_state.get("rascunho_bairros_v2", []), bairros
-        )
-        proxima_coluna = 1
-        bairros_selecionados = []
-        if cidades_selecionadas:
-            with linha_essencial[proxima_coluna]:
-                bairros_selecionados = st.multiselect(
-                    "Bairros",
-                    bairros,
-                    key="rascunho_bairros_v2",
-                    placeholder="Todos os bairros",
-                    on_change=_limpar_dependentes_bairro_v2,
+        # O formulário impede que cada widget provoque uma nova execução do
+        # catálogo. O único rerun provocado pelo filtro é o envio abaixo.
+        with st.form(key="mv_filter_form", border=False):
+            linha_essencial = st.columns(5 if st.session_state["rascunho_cidades_v2"] else 4)
+            with linha_essencial[0]:
+                cidades_selecionadas = st.multiselect(
+                    "Cidades",
+                    cidades_reais,
+                    key="rascunho_cidades_v2",
+                    placeholder="Todas as cidades",
                 )
-            proxima_coluna += 1
-        tipos = [todos_tipos, *db.listar_tipos(cidades=cidades_consulta)]
-        if st.session_state.get("rascunho_tipo_v2") not in tipos:
-            st.session_state["rascunho_tipo_v2"] = todos_tipos
-        with linha_essencial[proxima_coluna]:
-            tipo = st.selectbox(
-                "Tipo de imóvel",
-                tipos,
-                key="rascunho_tipo_v2",
+            cidades_consulta = cidades_selecionadas or None
+            bairros = db.listar_bairros(cidades=cidades_consulta)
+            st.session_state["rascunho_bairros_v2"] = selecoes_validas(
+                st.session_state.get("rascunho_bairros_v2", []), bairros
             )
-        with linha_essencial[proxima_coluna + 1]:
-            preco_min = st.number_input(
-                "Preço mínimo (R$)",
-                min_value=preco_minimo_bd if ha_precos else 0.0,
-                max_value=preco_maximo_bd if ha_precos else 0.0,
-                value=None,
-                step=1.0,
-                key="rascunho_preco_min_v2",
-                disabled=not ha_precos,
-                placeholder="Sem mínimo",
-                on_change=_sugerir_ordenacao_por_preco_v2,
-            )
-        with linha_essencial[proxima_coluna + 2]:
-            preco_max = st.number_input(
-                "Preço máximo (R$)",
-                min_value=preco_minimo_bd if ha_precos else 0.0,
-                max_value=preco_maximo_bd if ha_precos else 0.0,
-                value=None,
-                step=1.0,
-                key="rascunho_preco_max_v2",
-                disabled=not ha_precos,
-                placeholder="Sem máximo",
-                on_change=_sugerir_ordenacao_por_preco_v2,
-            )
+            proxima_coluna = 1
+            bairros_selecionados = []
+            if cidades_selecionadas:
+                with linha_essencial[proxima_coluna]:
+                    bairros_selecionados = st.multiselect(
+                        "Bairros",
+                        bairros,
+                        key="rascunho_bairros_v2",
+                        placeholder="Todos os bairros",
+                    )
+                proxima_coluna += 1
+            tipos = [todos_tipos, *db.listar_tipos(cidades=cidades_consulta)]
+            if st.session_state.get("rascunho_tipo_v2") not in tipos:
+                st.session_state["rascunho_tipo_v2"] = todos_tipos
+            with linha_essencial[proxima_coluna]:
+                tipo = st.selectbox("Tipo de imóvel", tipos, key="rascunho_tipo_v2")
+            with linha_essencial[proxima_coluna + 1]:
+                preco_min = st.number_input(
+                    "Preço mínimo (R$)",
+                    min_value=preco_minimo_bd if ha_precos else 0.0,
+                    max_value=preco_maximo_bd if ha_precos else 0.0,
+                    value=None,
+                    step=1.0,
+                    key="rascunho_preco_min_v2",
+                    disabled=not ha_precos,
+                    placeholder="Sem mínimo",
+                )
+            with linha_essencial[proxima_coluna + 2]:
+                preco_max = st.number_input(
+                    "Preço máximo (R$)",
+                    min_value=preco_minimo_bd if ha_precos else 0.0,
+                    max_value=preco_maximo_bd if ha_precos else 0.0,
+                    value=None,
+                    step=1.0,
+                    key="rascunho_preco_max_v2",
+                    disabled=not ha_precos,
+                    placeholder="Sem máximo",
+                )
 
-        with st.expander(
-            "Mais filtros",
-            expanded=bool(st.session_state.get("rascunho_imobiliarias_v2")),
-        ):
-            imobiliarias = db.listar_imobiliarias(
-                cidades=cidades_consulta, bairros=bairros_selecionados or None
-            )
-            st.session_state["rascunho_imobiliarias_v2"] = selecoes_validas(
-                st.session_state.get("rascunho_imobiliarias_v2", []), imobiliarias
-            )
-            imobiliarias_selecionadas = st.multiselect(
-                "Imobiliária",
-                imobiliarias,
-                key="rascunho_imobiliarias_v2",
-                placeholder="Todas as imobiliárias",
-            )
+            with st.expander(
+                "Mais filtros",
+                expanded=bool(st.session_state.get("rascunho_imobiliarias_v2")),
+            ):
+                imobiliarias = db.listar_imobiliarias(
+                    cidades=cidades_consulta, bairros=bairros_selecionados or None
+                )
+                st.session_state["rascunho_imobiliarias_v2"] = selecoes_validas(
+                    st.session_state.get("rascunho_imobiliarias_v2", []), imobiliarias
+                )
+                imobiliarias_selecionadas = st.multiselect(
+                    "Imobiliária",
+                    imobiliarias,
+                    key="rascunho_imobiliarias_v2",
+                    placeholder="Todas as imobiliárias",
+                )
 
-        linha_contextual = st.columns([1.2, 1])
-        with linha_contextual[0]:
-            incluir_sem_preco = st.checkbox(
-                "Incluir imóveis com preço sob consulta",
-                key="rascunho_incluir_sem_preco_v2",
-            )
-        opcoes_ordenacao = {
-            "recentes": "Verificados recentemente",
-            "preco_asc": "Menor preço",
-            "preco_desc": "Maior preço",
-        }
-        if st.session_state.get("rascunho_ordenacao_v2") not in opcoes_ordenacao:
-            st.session_state["rascunho_ordenacao_v2"] = "recentes"
-        with linha_contextual[1]:
-            ordenacao = st.selectbox(
-                "Ordenar por",
-                list(opcoes_ordenacao),
-                format_func=opcoes_ordenacao.get,
-                key="rascunho_ordenacao_v2",
-            )
+            linha_contextual = st.columns([1.2, 1])
+            with linha_contextual[0]:
+                incluir_sem_preco = st.checkbox(
+                    "Incluir imóveis com preço sob consulta",
+                    key="rascunho_incluir_sem_preco_v2",
+                )
+            opcoes_ordenacao = {
+                "recentes": "Verificados recentemente",
+                "preco_asc": "Menor preço",
+                "preco_desc": "Maior preço",
+            }
+            if st.session_state.get("rascunho_ordenacao_v2") not in opcoes_ordenacao:
+                st.session_state["rascunho_ordenacao_v2"] = "recentes"
+            with linha_contextual[1]:
+                ordenacao = st.selectbox(
+                    "Ordenar por",
+                    list(opcoes_ordenacao),
+                    format_func=opcoes_ordenacao.get,
+                    key="rascunho_ordenacao_v2",
+                )
 
+            rascunho = _estado_filtros_resultados_v2(_CHAVES_FILTROS_RASCUNHO_V2)
+            aplicados = _estado_filtros_resultados_v2(_CHAVES_FILTROS_APLICADOS_V2)
+            filtros_invalidos = preco_min is not None and preco_max is not None and preco_min > preco_max
+            tipos_rascunho = None if tipo == todos_tipos else [tipo]
+            filtros_rascunho = dict(
+                preco_min=preco_min,
+                preco_max=preco_max,
+                bairros=bairros_selecionados or None,
+                cidades=cidades_consulta,
+                tipos=tipos_rascunho,
+                imobiliarias=imobiliarias_selecionadas or None,
+                incluir_sem_preco=incluir_sem_preco,
+            )
+            total_rascunho = None if filtros_invalidos else db.contar_imoveis(**filtros_rascunho)
+            tem_alteracoes = rascunho != aplicados
+
+            with st.container(key="mv_filter_apply"):
+                if filtros_invalidos:
+                    st.error("O preço mínimo não pode ser maior que o preço máximo.")
+                elif tem_alteracoes:
+                    st.markdown(
+                        '<div class="mv-filter-pending">Alterações não aplicadas</div>',
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.caption("Ajuste os filtros e toque em “Ver imóveis” para atualizar a lista.")
+                limpar_coluna, aplicar_coluna = st.columns([.8, 2.2], vertical_alignment="bottom")
+                with limpar_coluna:
+                    limpar_filtros = st.form_submit_button(
+                        "Limpar",
+                        key="limpar_rascunho_resultados_v2",
+                        use_container_width=True,
+                    )
+                with aplicar_coluna:
+                    aplicar_filtros = st.form_submit_button(
+                        "Ver imóveis",
+                        key="aplicar_filtros_resultados_v2",
+                        type="primary",
+                        use_container_width=True,
+                    )
+
+        if limpar_filtros:
+            _limpar_rascunho_filtros_resultados_v2()
+        elif aplicar_filtros:
+            _aplicar_rascunho_filtros_resultados_v2()
+        # O envio do formulário atualiza os widgets antes desta leitura. Em
+        # seguida, reconstruímos os estados para a consulta e para a URL.
         rascunho = _estado_filtros_resultados_v2(_CHAVES_FILTROS_RASCUNHO_V2)
         aplicados = _estado_filtros_resultados_v2(_CHAVES_FILTROS_APLICADOS_V2)
-        filtros_invalidos = preco_min is not None and preco_max is not None and preco_min > preco_max
-        tipos_rascunho = None if tipo == todos_tipos else [tipo]
-        filtros_rascunho = dict(
-            preco_min=preco_min,
-            preco_max=preco_max,
-            bairros=bairros_selecionados or None,
-            cidades=cidades_consulta,
-            tipos=tipos_rascunho,
-            imobiliarias=imobiliarias_selecionadas or None,
-            incluir_sem_preco=incluir_sem_preco,
-        )
-        total_rascunho = None if filtros_invalidos else db.contar_imoveis(**filtros_rascunho)
-        tem_alteracoes = rascunho != aplicados
-
-        with st.container(key="mv_filter_apply"):
-            if filtros_invalidos:
-                st.error("O preço mínimo não pode ser maior que o preço máximo.")
-            elif tem_alteracoes:
-                st.markdown(
-                    '<div class="mv-filter-pending">Alterações não aplicadas</div>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.caption("Ajuste os filtros e toque em “Ver imóveis” para atualizar a lista.")
-            limpar_coluna, aplicar_coluna = st.columns([.8, 2.2], vertical_alignment="bottom")
-            with limpar_coluna:
-                st.button(
-                    "Limpar",
-                    key="limpar_rascunho_resultados_v2",
-                    on_click=_limpar_rascunho_filtros_resultados_v2,
-                    use_container_width=True,
-                )
-            with aplicar_coluna:
-                st.button(
-                    f"Ver {total_rascunho if total_rascunho is not None else 0:,} imóveis".replace(",", "."),
-                    key="aplicar_filtros_resultados_v2",
-                    type="primary",
-                    on_click=_aplicar_rascunho_filtros_resultados_v2,
-                    disabled=not tem_alteracoes or filtros_invalidos,
-                    use_container_width=True,
-                )
 
     cidades_selecionadas = aplicados["cidades"]
     bairros_selecionados = aplicados["bairros"]
