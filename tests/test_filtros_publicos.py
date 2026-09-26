@@ -206,6 +206,23 @@ class ConsultasPublicasTest(unittest.TestCase):
         )
         self.assertEqual("https://exemplo.test/c", decrescentes[0]["url"])
 
+    def test_preco_sentinela_e_tratado_como_sob_consulta(self):
+        self._inserir("/zero", 0, "2026-08-12T10:00:00-03:00")
+        self._inserir("/decimal-errado", 1, "2026-08-12T10:00:00-03:00")
+
+        visiveis = db.listar_imoveis(incluir_sem_preco=False, ordenar_por="preco_asc")
+        self.assertNotIn("https://exemplo.test/zero", [item["url"] for item in visiveis])
+        self.assertNotIn("https://exemplo.test/decimal-errado", [item["url"] for item in visiveis])
+
+        com_consulta = db.listar_imoveis(incluir_sem_preco=True, ordenar_por="preco_asc")
+        zero = next(item for item in com_consulta if item["url"].endswith("/zero"))
+        decimal_errado = next(
+            item for item in com_consulta if item["url"].endswith("/decimal-errado")
+        )
+        self.assertIsNone(zero["preco"])
+        self.assertIsNone(decimal_errado["preco"])
+        self.assertGreaterEqual(db.faixa_preco()[0], 1000)
+
     def test_filtros_omitem_lixo_e_unem_variantes_de_localidade(self):
         self.assertEqual(("Centro", "Contagem"), normalizar_localizacao("__Centro", "__Contagem"))
         self.assertEqual(("Canaã", None), normalizar_localizacao("Canaã", None))
