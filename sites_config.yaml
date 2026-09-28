@@ -941,6 +941,356 @@ sites:
       tipo: api
       max_paginas: 20
     seletores: {}
+  domicilium_sjdr:
+    nome: Domicilium Imóveis
+    logo: ''
+    base_url: https://www.domiciliumimoveis.com.br
+    listagem_url: https://www.domiciliumimoveis.com.br/
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "A home mistura venda e aluguel e a cobertura de 66 locações depende de POST /fetch_pages.php; requer adaptador específico validado."
+    espera_seletor: .listing-item
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: .listing-item
+      link: a[href*='imovel/']
+      titulo: .col-center-cod-price
+      preco: .col-center-cod-price
+      thumbnail: .listing-item img
+      thumbnail_attr: src
+    enriquecimento_detalhe:
+      max_itens: 100
+      orcamento_segundos: 180
+  prontto_sjdr:
+    nome: Prontto Imóveis
+    logo: ''
+    base_url: https://pronttoimoveis.com.br
+    listagem_url: https://pronttoimoveis.com.br/busca?finalidade=Aluguel
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "Os cards são renderizados por Next.js sem links no HTML inicial; requer validação de rota/browser e detalhe antes de ativar."
+    espera_seletor: div.group\/item
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: div.group\/item
+      link: "a[href*='/imovel/'], a[href*='/imoveis/']"
+      titulo: "h2, h3"
+      preco: "[class*='price'], [class*='valor'], p"
+      thumbnail: img
+      thumbnail_attr: src
+    enriquecimento_detalhe:
+      max_itens: 100
+      orcamento_segundos: 180
+  lc_sjdr:
+    nome: LC Imóveis
+    logo: ''
+    base_url: https://www.lcimobiliaria.com.br
+    listagem_url: https://www.lcimobiliaria.com.br/imoveis?m=ALUGUEL
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    espera_seletor: article.property-item
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: article.property-item
+      link: a[href*='/imovel/']
+      titulo: h3.attribute-title
+      preco: div.attribute-price
+      thumbnail: img.status-35
+      thumbnail_attr: src
+    enriquecimento_detalhe:
+      max_itens: 100
+      orcamento_segundos: 180
+  carazza_sjdr:
+    nome: Carazza Imóveis
+    logo: ''
+    base_url: https://www.carazzaimoveis.com.br
+    listagem_url: https://www.carazzaimoveis.com.br/
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "A página inicial confirma aluguel, mas a rota de resultados precisa ser ensinada e validada para não misturar venda."
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: ".property-item, .property"
+      link: a[href*='/imovel/']
+      titulo: "h2, h3, .property-title"
+      preco: ".price, .property-price"
+      thumbnail: img
+      thumbnail_attr: src
+  lider_sjdr:
+    nome: Imobiliária Líder
+    logo: ''
+    base_url: https://www.imobiliarialider.imb.br
+    listagem_url: https://www.imobiliarialider.imb.br/
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "O HTML público mistura venda e aluguel; falta rota de aluguel validada com preço e link de detalhe."
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: div.group.relative
+      link: a[href*='/imovel/']
+      titulo: "h2, h3"
+      preco: p
+      thumbnail: img
+      thumbnail_attr: src
+  chaves_sjdr:
+    nome: Chaves Imobiliária
+    logo: ''
+    base_url: https://www.chavescorretora.com.br
+    listagem_url: https://www.chavescorretora.com.br/imoveis?m=ALUGUEL
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "A rota de locação abre filtros, mas a amostra sem interação não expõe cards/preços; requer fluxo de seleção validado."
+    espera_seletor: main
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: "article, [class*='rounded'][class*='shadow']"
+      link: "a[href*='/imovel'], a[href*='/imoveis/']"
+      titulo: "h2, h3, h4"
+      preco: "[class*='price'], [class*='valor'], p"
+      thumbnail: img
+      thumbnail_attr: src
+    enriquecimento_detalhe:
+      max_itens: 100
+      orcamento_segundos: 180
+  zanfer_sjdr:
+    nome: Zanfer Imóveis
+    logo: ''
+    base_url: https://www.zanferimoveis.com.br
+    listagem_url: https://www.zanferimoveis.com.br/
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "A home é Next.js e mistura venda/aluguel; requer rota filtrada e teste de preço de locação antes de ativar."
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: "article, [class*='rounded']"
+      link: a[href*='/imovel']
+      titulo: "h2, h3"
+      preco: p
+      thumbnail: img
+      thumbnail_attr: src
+  foco_sjdr:
+    nome: Foco Imobiliária
+    logo: ''
+    base_url: https://www.focoimoveissjdr.com.br
+    listagem_url: https://www.focoimoveissjdr.com.br/imovel/?finalidade=locacao
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "A rota informou locação, mas o navegador recebeu página vazia; precisa validar rota pública alternativa antes de ativar."
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: ".property-block, article"
+      link: a[href*='/imovel/']
+      titulo: "h2, h3, h6"
+      preco: ".price, [class*='price'], span"
+      thumbnail: img
+      thumbnail_attr: src
+  realiza_sjdr:
+    nome: Realiza Imóveis
+    logo: ''
+    base_url: https://www.realizaimoveissjdr.com.br
+    listagem_url: https://www.realizaimoveissjdr.com.br/
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "Next.js entrega cards mistos; ativar somente após validar filtro de locação e preço sem venda."
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: div.shadow-sm
+      link: a[href*='/imoveis/']
+      titulo: h3.text-accent
+      preco: p.font-black
+      thumbnail: img.duration-500
+      thumbnail_attr: src
+  krasis_sjdr:
+    nome: Krásis Imobiliária
+    logo: ''
+    base_url: https://www.imobiliariakrasis.com.br
+    listagem_url: https://www.imobiliariakrasis.com.br/imoveis?m=ALUGUEL
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "O filtro de aluguel responde, mas a amostra automática não expôs preço e cards suficientes; requer interação validada."
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: "article, [class*='property'], [class*='card']"
+      link: a[href*='/imovel']
+      titulo: "h2, h3, h4"
+      preco: "[class*='price'], [class*='valor'], p"
+      thumbnail: img
+      thumbnail_attr: src
+  flavio_sjdr:
+    nome: Flávio Vitor Imóveis
+    logo: ''
+    base_url: https://www.flaviovitorimoveis.com.br
+    listagem_url: https://www.flaviovitorimoveis.com.br/propriedades?m=ALUGUEL
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "A rota responde, mas não expôs preço/títulos suficientes no teste automatizado."
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: div.col-span-1
+      link: a[href*='/propriedad']
+      titulo: "h2, h3, a.py-3"
+      preco: "[class*='price'], [class*='valor'], p"
+      thumbnail: img
+      thumbnail_attr: src
+  wilcler_sjdr:
+    nome: Wilcler Jorge Imóveis
+    logo: ''
+    base_url: https://wilclerjorgeimoveis.com.br
+    listagem_url: https://wilclerjorgeimoveis.com.br/imovel/?finalidade=locacao
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "HTTP público responde, mas o navegador automatizado recebe 403; ativação aguarda validação de acesso permitida."
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: div.imovelcard
+      link: a[href*='/imovel/']
+      titulo: "p.imovelcard__info__ref, h2"
+      preco: p.imovelcard__valor__valor
+      bairro: h2.imovelcard__info__local
+      thumbnail: img
+      thumbnail_attr: src
+  trindade_sjdr:
+    nome: Imobiliária Trindade
+    logo: ''
+    base_url: https://imobiliariatrindadesjdr.com.br
+    listagem_url: https://imobiliariatrindadesjdr.com.br/?m=ALUGUEL
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    espera_seletor: div.property-block
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: div.property-block
+      link: a.font-600
+      titulo: h6.mt-2
+      preco: span.font-700
+      thumbnail: img
+      thumbnail_attr: src
+    enriquecimento_detalhe:
+      max_itens: 100
+      orcamento_segundos: 180
+  tiradentes_sjdr:
+    nome: Tiradentes Imóveis
+    logo: ''
+    base_url: https://tiradentesimoveis.com.br
+    listagem_url: https://tiradentesimoveis.com.br/
+    cidade_padrao: Tiradentes
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "Aplicação Angular exige selecionar locação e cidade antes de expor os cards; rota ainda não foi estabilizada."
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: ".imovel, [class*='imovel']"
+      link: a[href*='/imovel']
+      titulo: "h2, h3, h4"
+      preco: "[class*='preco'], [class*='valor'], p"
+      thumbnail: img
+      thumbnail_attr: src
+  viamartins_sjdr:
+    nome: Via Martins Imóveis
+    logo: ''
+    base_url: https://viamartinsimoveis.com.br
+    listagem_url: https://viamartinsimoveis.com.br/imovel/?finalidade=locacao
+    cidade_padrao: Tiradentes
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "A rota oficial retornou zero imóveis de locação na verificação de 28/09/2026."
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: div.imovelcard
+      link: a[href*='/imovel/']
+      titulo: p.imovelcard__info__ref, h2
+      preco: p.imovelcard__valor__valor
+      bairro: h2.imovelcard__info__local
+      thumbnail: img
+      thumbnail_attr: src
+  terra_sjdr:
+    nome: Terra dos Imóveis (portal)
+    logo: ''
+    base_url: https://www.terradosimoveis.com.br
+    listagem_url: https://www.terradosimoveis.com.br/imoveis?modalidade=ALUGUEL
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "Portal agregador; não cadastrar como imobiliária para evitar duplicação e conflito de fonte."
+    paginacao:
+      tipo: auto
+      max_paginas: 20
+    seletores:
+      card: "article, [class*='card']"
+      link: a[href*='/imovel']
+      titulo: "h2, h3"
+      preco: "[class*='price'], [class*='valor'], p"
+      thumbnail: img
+      thumbnail_attr: src
+  zaila_sjdr:
+    nome: Zaila Imóveis
+    logo: ''
+    base_url: https://zailaimoveis.com.br
+    listagem_url: https://zailaimoveis.com.br/imovel/?finalidade=locacao
+    cidade_padrao: São João del-Rei
+    finalidade: aluguel
+    coleta_ativa: false
+    motivo_quarentena: "Seletores SSR foram validados, mas o navegador automatizado recebeu 403; ativar apenas após acesso permitido e revalidação."
+    espera_seletor: div.imovelcard
+    paginacao:
+      tipo: url
+      url_template: https://zailaimoveis.com.br/imovel/?finalidade=locacao&pagina={pagina}
+      pagina_inicial: 1
+      max_paginas: 20
+      parar_sem_novos: 1
+    seletores:
+      card: div.imovelcard
+      link: a[href*='/imovel/']
+      titulo: h2.imovelcard__info__tag
+      preco: p.imovelcard__valor__valor
+      bairro: h2.imovelcard__info__local
+      thumbnail: img
+      thumbnail_attr: src
+    endereco_regex: '^(?P<bairro>.+?),\s*(?P<cidade>.+?)\s*/\s*MG$'
+    enriquecimento_detalhe:
+      max_itens: 100
+      orcamento_segundos: 180
 agendamento:
   intervalo_horas: 6
   horario_fixo: 09:10

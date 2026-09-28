@@ -600,7 +600,7 @@ def _url_anuncio_valida(url):
 
 
 def _saude_lote(itens, baseline=0):
-    """Gate determinístico: aprende com o último volume saudável da fonte."""
+    """Gate determinístico com título e cidade obrigatórios em todo anúncio."""
     total = len(itens)
     if not total:
         return {
@@ -622,14 +622,14 @@ def _saude_lote(itens, baseline=0):
     motivos = []
     if not urls or taxas["url"] < 0.95:
         motivos.append("URLs de anúncio insuficientes ou inválidas")
-    if taxas["titulo"] < 0.60:
-        motivos.append("títulos úteis abaixo de 60%")
+    if taxas["titulo"] < 1.0:
+        motivos.append("há anúncio sem título útil")
     if taxas["preco"] < 0.50:
         motivos.append("preços de aluguel confiáveis abaixo de 50%")
     if taxas["bairro"] < 0.70:
         motivos.append("bairros confiáveis abaixo de 70%")
-    if taxas["cidade"] < 0.60:
-        motivos.append("cidades preenchidas abaixo de 60%")
+    if taxas["cidade"] < 1.0:
+        motivos.append("há anúncio sem cidade confirmada")
     if baseline >= 10 and len(urls) < baseline * 0.50:
         motivos.append(f"volume caiu de {baseline} para {len(urls)} URLs")
     return {
