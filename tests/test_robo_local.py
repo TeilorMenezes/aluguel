@@ -298,6 +298,8 @@ class RoboLocalTest(unittest.TestCase):
         self.assertFalse(scraper._saude_lote(lote_quebrado, baseline=3)["aceito"])
         lote_sem_bairro = [{**item, "bairro": None} for item in lote_saudavel]
         self.assertFalse(scraper._saude_lote(lote_sem_bairro, baseline=3)["aceito"])
+        lote_sem_cidade = [{**item, "cidade": None} for item in lote_saudavel]
+        self.assertFalse(scraper._saude_lote(lote_sem_cidade, baseline=3)["aceito"])
         vazio = scraper._saude_lote([], baseline=3)
         self.assertEqual(vazio["urls_unicas"], 0)
         self.assertEqual(vazio["taxas"], {})
