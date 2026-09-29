@@ -156,7 +156,8 @@ def _cidade_da_url(url):
         not re.fullmatch(r"[A-Za-zÀ-ÿ ]{3,60}", candidato)
         or candidato.casefold() in {
             "aluguel", "alugar", "imoveis", "imóveis", "pesquisa imoveis",
-            "pesquisa imóveis", "busca", "buscar", "resultados", "mg", "br",
+            "pesquisa imóveis", "busca", "buscar", "resultados", "propriedades",
+            "imovel", "imóvel", "mg", "br",
         }
     ):
         return None
@@ -166,6 +167,13 @@ def _cidade_da_url(url):
 def _link_do_imovel(card, seletor_preferido, exigir_preferido=False):
     """Escolhe um link de anúncio, ignorando âncoras que abrem somente fotos."""
     candidatos = []
+    # Alguns portais usam a própria âncora como unidade visual do card. Como
+    # query_selector só procura descendentes, considere também o elemento raiz.
+    try:
+        if card.evaluate("el => el.tagName.toLowerCase()") == "a":
+            candidatos.append(card)
+    except Exception:
+        pass
     preferido = _selecionar(card, seletor_preferido)
     if preferido:
         candidatos.append(preferido)
@@ -762,8 +770,13 @@ def _enriquecer_itens_incompletos(page, itens, cfg_site, limite=None):
                     bairro_atual=item.get("bairro"),
                     cidade_atual=item.get("cidade"),
                 )
-                item["bairro"] = bairro
-                item["cidade"] = cidade
+                # A página de detalhe pode omitir localização mesmo quando a
+                # listagem já forneceu a cidade padrão/normalizada. Preserve o
+                # valor anterior em vez de substituí-lo por None.
+                if bairro:
+                    item["bairro"] = bairro
+                if cidade:
+                    item["cidade"] = cidade
         except Exception:
             continue
         finally:

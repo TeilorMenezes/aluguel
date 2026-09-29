@@ -1053,22 +1053,22 @@ sites:
     listagem_url: https://www.chavescorretora.com.br/imoveis?m=ALUGUEL
     cidade_padrao: São João del-Rei
     finalidade: aluguel
-    coleta_ativa: false
-    motivo_quarentena: "A rota de locação abre filtros, mas a amostra sem interação não expõe cards/preços; requer fluxo de seleção validado."
-    espera_seletor: main
+    coleta_ativa: true
+    espera_seletor: div.animate-fade-up
     paginacao:
       tipo: auto
       max_paginas: 20
     seletores:
-      card: "article, [class*='rounded'][class*='shadow']"
-      link: "a[href*='/imovel'], a[href*='/imoveis/']"
-      titulo: "h2, h3, h4"
-      preco: "[class*='price'], [class*='valor'], p"
+      card: div.animate-fade-up
+      link: a.block.card-hover
+      titulo: h3
+      preco: p
+      bairro: p:nth-of-type(2)
       thumbnail: img
       thumbnail_attr: src
     enriquecimento_detalhe:
-      max_itens: 100
-      orcamento_segundos: 180
+      max_itens: 0
+      orcamento_segundos: 0
   zanfer_sjdr:
     nome: Zanfer Imóveis
     logo: ''
@@ -1076,16 +1076,16 @@ sites:
     listagem_url: https://www.zanferimoveis.com.br/
     cidade_padrao: São João del-Rei
     finalidade: aluguel
-    coleta_ativa: false
-    motivo_quarentena: "A home é Next.js e mistura venda/aluguel; requer rota filtrada e teste de preço de locação antes de ativar."
+    coleta_ativa: true
+    espera_seletor: a[href*='/imovel/']
     paginacao:
       tipo: auto
       max_paginas: 20
     seletores:
-      card: "article, [class*='rounded']"
-      link: a[href*='/imovel']
-      titulo: "h2, h3"
-      preco: p
+      card: div.group
+      link: a[href*='/imovel/']
+      titulo: h3
+      preco: span.bg-laranja
       thumbnail: img
       thumbnail_attr: src
   foco_sjdr:
@@ -1133,18 +1133,22 @@ sites:
     listagem_url: https://www.imobiliariakrasis.com.br/imoveis?m=ALUGUEL
     cidade_padrao: São João del-Rei
     finalidade: aluguel
-    coleta_ativa: false
-    motivo_quarentena: "O filtro de aluguel responde, mas a amostra automática não expôs preço e cards suficientes; requer interação validada."
+    coleta_ativa: true
+    espera_seletor: div.animate-fade-up
     paginacao:
       tipo: auto
       max_paginas: 20
     seletores:
-      card: "article, [class*='property'], [class*='card']"
-      link: a[href*='/imovel']
-      titulo: "h2, h3, h4"
-      preco: "[class*='price'], [class*='valor'], p"
+      card: div.animate-fade-up
+      link: a.block.group.card-hover
+      titulo: h3
+      preco: p.mt-2
+      bairro: p
       thumbnail: img
       thumbnail_attr: src
+    enriquecimento_detalhe:
+      max_itens: 0
+      orcamento_segundos: 0
   flavio_sjdr:
     nome: Flávio Vitor Imóveis
     logo: ''
@@ -1152,18 +1156,21 @@ sites:
     listagem_url: https://www.flaviovitorimoveis.com.br/propriedades?m=ALUGUEL
     cidade_padrao: São João del-Rei
     finalidade: aluguel
-    coleta_ativa: false
-    motivo_quarentena: "A rota responde, mas não expôs preço/títulos suficientes no teste automatizado."
+    coleta_ativa: true
+    espera_seletor: 'div[data-property-card="true"]'
     paginacao:
       tipo: auto
       max_paginas: 20
     seletores:
-      card: div.col-span-1
-      link: a[href*='/propriedad']
-      titulo: "h2, h3, a.py-3"
-      preco: "[class*='price'], [class*='valor'], p"
+      card: 'div[data-property-card="true"]'
+      link: a[href*='/propriedades/aluguel-']
+      titulo: p
+      preco: p
       thumbnail: img
       thumbnail_attr: src
+    enriquecimento_detalhe:
+      max_itens: 0
+      orcamento_segundos: 0
   wilcler_sjdr:
     nome: Wilcler Jorge Imóveis
     logo: ''

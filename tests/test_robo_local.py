@@ -284,6 +284,9 @@ class RoboLocalTest(unittest.TestCase):
         self.assertIsNone(
             scraper._cidade_da_url("https://exemplo.test/pesquisa-imoveis/")
         )
+        self.assertIsNone(
+            scraper._cidade_da_url("https://exemplo.test/propriedades?m=ALUGUEL")
+        )
         lote_saudavel = [
             {
                 "url": f"https://exemplo.test/imovel/{numero}",
