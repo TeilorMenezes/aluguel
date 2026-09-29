@@ -1274,22 +1274,18 @@ sites:
     nome: Zaila Imóveis
     logo: ''
     base_url: https://zailaimoveis.com.br
-    listagem_url: https://zailaimoveis.com.br/imovel/?finalidade=locacao
+    listagem_url: https://zailaimoveis.com.br/imovel/locacao
     cidade_padrao: São João del-Rei
     finalidade: aluguel
-    coleta_ativa: false
-    motivo_quarentena: "Seletores SSR foram validados, mas o navegador automatizado recebeu 403; ativar apenas após acesso permitido e revalidação."
+    coleta_ativa: true
     espera_seletor: div.imovelcard
     paginacao:
-      tipo: url
-      url_template: https://zailaimoveis.com.br/imovel/?finalidade=locacao&pagina={pagina}
-      pagina_inicial: 1
+      tipo: nenhuma
       max_paginas: 20
-      parar_sem_novos: 1
     seletores:
       card: div.imovelcard
       link: a[href*='/imovel/']
-      titulo: h2.imovelcard__info__tag
+      titulo: p.imovelcard__info__ref
       preco: p.imovelcard__valor__valor
       bairro: h2.imovelcard__info__local
       thumbnail: img
