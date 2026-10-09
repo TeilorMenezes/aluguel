@@ -301,3 +301,21 @@ sites:
       parar_sem_novos: 2
       aprendida_automaticamente: true
     estrategia_atualizada_em: '2026-08-23T15:54:07-03:00'
+  alavanca_gv:
+    paginacao:
+      tipo: rolagem
+      max_rolagens: 50
+      espera_apos_rolagem_ms: 1400
+      parar_sem_novos: 3
+      aprendida_automaticamente: true
+      apis_observadas: []
+    estrategia_atualizada_em: '2026-09-30T22:51:07-03:00'
+  dommus_imoveis:
+    paginacao:
+      tipo: rolagem
+      max_rolagens: 50
+      espera_apos_rolagem_ms: 1400
+      parar_sem_novos: 3
+      aprendida_automaticamente: true
+      apis_observadas: []
+    estrategia_atualizada_em: '2026-10-09T07:49:46-03:00'
