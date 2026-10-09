@@ -1,3 +1,4 @@
+import ast
 import json
 import os
 import sqlite3
@@ -62,6 +63,32 @@ class PublicSnapshotTest(unittest.TestCase):
         self.assertNotIn("scheduler_runner", startup)
         self.assertNotIn("iniciar_agendador", startup)
         self.assertNotIn("coletar_sites_sem_dados_async", startup)
+
+    def test_fragmento_dos_filtros_nao_consulta_anuncios(self):
+        source = (Path(__file__).parents[1] / "app.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        fragmento = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "_renderizar_filtros_resultados_v2"
+        )
+        self.assertTrue(
+            any(
+                isinstance(decorator, ast.Name) and decorator.id == "_fragment"
+                for decorator in fragmento.decorator_list
+            )
+        )
+        consultas_anuncios = {
+            node.func.attr
+            for node in ast.walk(fragmento)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "db"
+            and node.func.attr in {"contar_imoveis", "listar_imoveis"}
+        }
+        self.assertEqual(set(), consultas_anuncios)
 
     def test_complete_snapshot_has_manifest_and_public_schema_only(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -3,7 +3,11 @@ import unittest
 from pathlib import Path
 
 import db
-from filtros_publicos import parametros_resultados_url, restaurar_filtros_resultados
+from filtros_publicos import (
+    parametros_resultados_url,
+    restaurar_filtros_resultados,
+    selecoes_validas,
+)
 from normalizacao import normalizar_localizacao
 
 
@@ -161,7 +165,7 @@ class ConsultasPublicasTest(unittest.TestCase):
         self.temp_dir.cleanup()
 
     @staticmethod
-    def _item(url, preco, coletado_em):
+    def _item(url, preco, coletado_em, cidade="Ipatinga", bairro="Centro"):
         return {
             "site_key": "teste",
             "imobiliaria": "Alfa",
@@ -170,16 +174,18 @@ class ConsultasPublicasTest(unittest.TestCase):
             "titulo": "Imóvel teste",
             "tipo": "Apartamento",
             "preco": preco,
-            "bairro": "Centro",
-            "cidade": "Ipatinga",
+            "bairro": bairro,
+            "cidade": cidade,
             "thumbnail_url": None,
             "latitude": None,
             "longitude": None,
             "coletado_em": coletado_em,
         }
 
-    def _inserir(self, url, preco, coletado_em):
-        db.upsert_imovel(self._item(url, preco, coletado_em))
+    def _inserir(
+        self, url, preco, coletado_em, cidade="Ipatinga", bairro="Centro"
+    ):
+        db.upsert_imovel(self._item(url, preco, coletado_em, cidade, bairro))
 
     def test_contagem_e_listagem_compartilham_filtros_e_sob_consulta(self):
         combinacoes = (
@@ -235,6 +241,34 @@ class ConsultasPublicasTest(unittest.TestCase):
 
         self.assertEqual(["Contagem", "Ipatinga"], db.listar_cidades())
         self.assertEqual(["Canaã", "Centro"], db.listar_bairros(cidades=["Contagem", "Ipatinga"]))
+
+    def test_bairros_acompanham_uniao_das_cidades_e_preservam_validos(self):
+        data = "2026-08-12T10:00:00-03:00"
+        self._inserir("/timoteo-centro", 1200, data, "Timóteo", "Centro")
+        self._inserir("/timoteo-alvorada", 1300, data, "Timóteo", "Alvorada")
+        self._inserir(
+            "/fabriciano-centro", 1400, data, "Coronel Fabriciano", "Centro"
+        )
+        self._inserir(
+            "/fabriciano-caladinho", 1500, data, "Coronel Fabriciano", "Caladinho"
+        )
+
+        todos = db.listar_bairros()
+        self.assertEqual(todos, db.listar_bairros(cidades=[]))
+        self.assertEqual(
+            ["Alvorada", "Centro"], db.listar_bairros(cidades=["Timóteo"])
+        )
+        self.assertEqual(
+            ["Alvorada", "Caladinho", "Centro"],
+            db.listar_bairros(cidades=["Timóteo", "Coronel Fabriciano"]),
+        )
+        self.assertEqual(
+            ["Centro"],
+            selecoes_validas(
+                ["Centro", "Alvorada"],
+                db.listar_bairros(cidades=["Coronel Fabriciano"]),
+            ),
+        )
 
 
 if __name__ == "__main__":
