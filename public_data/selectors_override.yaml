@@ -166,7 +166,7 @@ sites:
     aprendido_em: '2026-08-12T15:30:19-03:00'
   attria:
     paginacao:
-      tipo: api_aprendida
+      tipo: url
       url_template: https://www.attria.com.br/aluguel/mg?page={pagina}
       pagina_inicial: 1
       incremento: 1
