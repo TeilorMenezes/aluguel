@@ -319,3 +319,44 @@ sites:
       aprendida_automaticamente: true
       apis_observadas: []
     estrategia_atualizada_em: '2026-10-09T07:49:46-03:00'
+  deztop:
+    filtros:
+      tipo: select
+      seletor: select[name="type"]
+      opcoes:
+      - value: '101'
+        label: Apartamento
+      - value: '102'
+        label: Apartamento na cobertura
+      - value: '103'
+        label: Casa
+      - value: '104'
+        label: Casa em condomínio
+      - value: '105'
+        label: Chácara
+      - value: '106'
+        label: Fazenda ou sítio
+      - value: '107'
+        label: Flat ou studio
+      - value: '108'
+        label: Galpão ou deposito
+      - value: '109'
+        label: Kitnet
+      - value: '110'
+        label: Lançamento
+      - value: '111'
+        label: Loja
+      - value: '112'
+        label: Pousada ou chalé
+      - value: '113'
+        label: Quarto
+      - value: '114'
+        label: Sala comercial
+      - value: '115'
+        label: Terreno ou lote
+      - value: '116'
+        label: Estacionamento
+      - value: '117'
+        label: Hotel
+      max_opcoes: 60
+    estrategia_atualizada_em: '2026-11-01T11:03:20-03:00'
